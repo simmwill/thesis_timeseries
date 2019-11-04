@@ -11,12 +11,33 @@ library(tidyverse)
 library(readxl)
 ```
 
+```{r, echo = FALSE}
+#Convert a numeric  MATLAB datenum (days since 0000-1-1 00:00) to seconds in 
+#the Unix epoch (seconds since 1970-1-1 00:00). Specify a time zone if the 
+#input datenum is anything other than the GMT/UTC time zone. 
+matlab2POS_dhaka = function(x, timez = "Asia/Dhaka") {
+	days = x - 719529 	# 719529 = days from 1-1-0000 to 1-1-1970
+	secs = days * 86400 # 86400 seconds in a day
+	# This next string of functions is a complete disaster, but it works.
+	# It tries to outsmart R by converting the secs value to a POSIXct value
+	# in the UTC time zone, then converts that to a time/date string that 
+	# should lose the time zone, and then it performs a second as.POSIXct()
+	# conversion on the time/date string to get a POSIXct value in the user's 
+	# specified timezone. Time zones are a goddamned nightmare.
+	return(as.Date(as.POSIXct(strftime(as.POSIXct(secs, origin = '1970-1-1', 
+			tz = 'Asia/Dhaka'), format = '%Y-%m-%d %H:%M', 
+			tz = 'Asia/Dhaka', usetz = FALSE), tz = timez)))
+}
+
+```
+
+
 #### Importing and cleaning data
 
 ```{r, warning = FALSE}
 nsp = read_excel('./data/nsp_subset_datechanged.xlsx') %>% 
   select(-rd, -thana, -union, -vill, -para, -match_quality, -year) %>% 
-  mutate(dov = as.Date(dov), tz = 'Asia/Dhaka', ## converting POSIXct to Date
+  mutate(dov = as.Date(dov), ## converting POSIXct to Date
          surv_area = as.ordered(surv_area), 
          area_name = as.factor(area_name),
          area_name = forcats::fct_reorder(area_name, as.numeric(surv_area)), ## area_name is factor ordered by surv_area
@@ -24,7 +45,7 @@ nsp = read_excel('./data/nsp_subset_datechanged.xlsx') %>%
          zlen = as.numeric(zlen),
          zwei = as.numeric(zwei),
          ageindays = as.numeric(ageindays)
-  )
+  ) 
          
 ```
 
@@ -74,5 +95,45 @@ plot_zwfl_timeseries("Shyamnagar/Debhata")
 # plot all
 # plots = map(area_names, plot_zwfl_timeseries)
 
+```
+
+#### Reading in ENACTS data
+
+```{r}
+enacts_read = read_excel('./data/ENACTS.xlsx') 
+
+enacts =
+  enacts_read %>% 
+  mutate(date = matlab2POS_dhaka(pull(enacts_read, matlab_daynum)),
+         surv_area = as.ordered(surv_area)) %>%  ## using MATLAB date conversion defined in beginning (hidden)
+  select(surv_area, date, everything(), -matlab_daynum, -month, -year, -contains('runavg'), -hotday, -starts_with('movsum'), -daynum) %>% view
+```
+
+#### Preliminary ENACTS plots
+
+```{r, fig.width = 12}
+enacts %>% 
+  filter(surv_area == 4) %>% 
+  mutate(month_timeseries = cut(date, breaks = "month"),
+         month_timeseries = as.Date(month_timeseries)) %>% 
+  group_by(month_timeseries) %>% 
+  summarize(mean_tmax = mean(tmax),
+            mean_tmin = mean(tmin), 
+            mean_precip = mean(precip)) %>% 
+  ggplot(aes(x = month_timeseries)) +
+  geom_line(aes(y = mean_tmax, color = 'mean_tmax')) + 
+  geom_line(aes(y = mean_tmin, color = 'mean_tmin')) +
+  geom_line(aes(y = mean_precip/2, color = "mean_precip")) +
+  scale_color_manual(breaks = c('mean_tmax', 'mean_tmin', 'mean_precip'),
+                     values = c('#A44D51', '#EED596', '#06826A')
+  ) %>% 
+  labs(x = "Day",
+       y = "Mean monthly temperature [°C]\n",
+       title = "Mean monthly weather patterns across data, Area 4") +
+  scale_y_continuous(sec.axis = sec_axis(~.*2, name = "Mean monthly precipitation [mm]\n")) +
+  theme_light() +
+  theme(legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5))
+  
 ```
 

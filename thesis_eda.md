@@ -27,7 +27,7 @@ library(readxl)
 ``` r
 nsp = read_excel('./data/nsp_subset_datechanged.xlsx') %>% 
   select(-rd, -thana, -union, -vill, -para, -match_quality, -year) %>% 
-  mutate(dov = as.Date(dov), tz = 'Asia/Dhaka', ## converting POSIXct to Date
+  mutate(dov = as.Date(dov), ## converting POSIXct to Date
          surv_area = as.ordered(surv_area), 
          area_name = as.factor(area_name),
          area_name = forcats::fct_reorder(area_name, as.numeric(surv_area)), ## area_name is factor ordered by surv_area
@@ -35,7 +35,7 @@ nsp = read_excel('./data/nsp_subset_datechanged.xlsx') %>%
          zlen = as.numeric(zlen),
          zwei = as.numeric(zwei),
          ageindays = as.numeric(ageindays)
-  )
+  ) 
 ```
 
 #### Table of survey area number by area name
@@ -80,7 +80,7 @@ nsp %>%
 
     ## Warning: Removed 14632 rows containing missing values (geom_point).
 
-![](thesis_eda_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+![](thesis_eda_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
 ``` r
 plot_zwfl_timeseries = function(area) {
@@ -106,7 +106,7 @@ plot_zwfl_timeseries("Shyamnagar/Debhata")
 
     ## Warning: Removed 376 rows containing missing values (geom_point).
 
-![](thesis_eda_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
 ``` r
 # figure out how to plot all 25 using map()
@@ -114,3 +114,44 @@ plot_zwfl_timeseries("Shyamnagar/Debhata")
 # plot all
 # plots = map(area_names, plot_zwfl_timeseries)
 ```
+
+#### Reading in ENACTS data
+
+``` r
+enacts_read = read_excel('./data/ENACTS.xlsx') 
+
+enacts =
+  enacts_read %>% 
+  mutate(date = matlab2POS_dhaka(pull(enacts_read, matlab_daynum)),
+         surv_area = as.ordered(surv_area)) %>%  ## using MATLAB date conversion defined in beginning (hidden)
+  select(surv_area, date, everything(), -matlab_daynum, -month, -year, -contains('runavg'), -hotday, -starts_with('movsum'), -daynum) %>% view
+```
+
+#### Preliminary ENACTS plots
+
+``` r
+enacts %>% 
+  filter(surv_area == 4) %>% 
+  mutate(month_timeseries = cut(date, breaks = "month"),
+         month_timeseries = as.Date(month_timeseries)) %>% 
+  group_by(month_timeseries) %>% 
+  summarize(mean_tmax = mean(tmax),
+            mean_tmin = mean(tmin), 
+            mean_precip = mean(precip)) %>% 
+  ggplot(aes(x = month_timeseries)) +
+  geom_line(aes(y = mean_tmax, color = 'mean_tmax')) + 
+  geom_line(aes(y = mean_tmin, color = 'mean_tmin')) +
+  geom_line(aes(y = mean_precip/2, color = "mean_precip")) +
+  scale_color_manual(breaks = c('mean_tmax', 'mean_tmin', 'mean_precip'),
+                     values = c('#A44D51', '#EED596', '#06826A')
+  ) %>% 
+  labs(x = "Day",
+       y = "Mean monthly temperature [°C]\n",
+       title = "Mean monthly weather patterns across data, Area 4") +
+  scale_y_continuous(sec.axis = sec_axis(~.*2, name = "Mean monthly precipitation [mm]\n")) +
+  theme_light() +
+  theme(legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5))
+```
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-8-1.png)<!-- -->
