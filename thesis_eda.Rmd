@@ -1,0 +1,78 @@
+---
+title: "Exploratory Data Analysis"
+author: "Will Simmons"
+date: "11/4/2019"
+output: github_document
+editor_options: 
+  chunk_output_type: console
+---
+```{r}
+library(tidyverse)
+library(readxl)
+```
+
+#### Importing and cleaning data
+
+```{r, warning = FALSE}
+nsp = read_excel('./data/nsp_subset_datechanged.xlsx') %>% 
+  select(-rd, -thana, -union, -vill, -para, -match_quality, -year) %>% 
+  mutate(dov = as.Date(dov), tz = 'Asia/Dhaka', ## converting POSIXct to Date
+         surv_area = as.ordered(surv_area), 
+         area_name = as.factor(area_name),
+         area_name = forcats::fct_reorder(area_name, as.numeric(surv_area)), ## area_name is factor ordered by surv_area
+         zwfl = as.numeric(zwfl), ## NAs will be introduced by coercion
+         zlen = as.numeric(zlen),
+         zwei = as.numeric(zwei),
+         ageindays = as.numeric(ageindays)
+  )
+         
+```
+
+#### Table of survey area number by area name
+
+```{r, echo = FALSE}
+nsp %>% 
+  group_by(surv_area, area_name) %>% 
+  select(surv_area, area_name) %>% 
+  arrange(surv_area) %>% 
+  unique() %>% 
+  knitr::kable()
+```
+
+#### Survey frequency by time and area
+```{r}
+nsp %>% 
+  ggplot(aes(x = dov, y = zwfl)) +
+  geom_point(size = 0.01) +
+  facet_wrap(. ~ area_name, ncol = 5) +
+  xlim(as.Date("1990-01-01"), as.Date("2006-12-31"))
+```
+
+```{r}
+plot_zwfl_timeseries = function(area) {
+  
+  nsp %>% 
+    filter(area_name == area) %>% 
+    ggplot(aes(x = dov, y = zwfl)) +
+    geom_point(size = 0.01) +
+    xlim(as.Date("1990-01-01"), as.Date("2006-12-31"))
+  
+}
+
+area_names = 
+  nsp %>% 
+  group_by(area_name) %>% 
+  select(area_name) %>% 
+  unique() %>% 
+  as.character()
+
+## plot one area
+plot_zwfl_timeseries("Shyamnagar/Debhata")
+
+## figure out how to plot all 25 using map()
+# 
+# ## plot all
+# plots = map(area_names, plot_zwfl_timeseries)
+
+```
+
