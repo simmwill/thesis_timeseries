@@ -29,7 +29,8 @@ nsp = read_excel('./data/nsp_subset_datechanged.xlsx') %>%
   select(-rd, -thana, -union, -vill, -para, -match_quality, -year) %>% 
   mutate(dov = as.Date(dov), tz = 'Asia/Dhaka', ## converting POSIXct to Date
          surv_area = as.ordered(surv_area), 
-         ## turn area_name into factor linked with surv_area?
+         area_name = as.factor(area_name),
+         area_name = forcats::fct_reorder(area_name, as.numeric(surv_area)), ## area_name is factor ordered by surv_area
          zwfl = as.numeric(zwfl), ## NAs will be introduced by coercion
          zlen = as.numeric(zlen),
          zwei = as.numeric(zwei),
@@ -80,3 +81,36 @@ nsp %>%
     ## Warning: Removed 14632 rows containing missing values (geom_point).
 
 ![](thesis_eda_files/figure-gfm/unnamed-chunk-4-1.png)<!-- -->
+
+``` r
+plot_zwfl_timeseries = function(area) {
+  
+  nsp %>% 
+    filter(area_name == area) %>% 
+    ggplot(aes(x = dov, y = zwfl)) +
+    geom_point(size = 0.01) +
+    xlim(as.Date("1990-01-01"), as.Date("2006-12-31"))
+  
+}
+
+area_names = 
+  nsp %>% 
+  group_by(area_name) %>% 
+  select(area_name) %>% 
+  unique() %>% 
+  as.character()
+
+# plot one area
+plot_zwfl_timeseries("Shyamnagar/Debhata")
+```
+
+    ## Warning: Removed 376 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
+
+``` r
+# figure out how to plot all 25 using map()
+# 
+# plot all
+# plots = map(area_names, plot_zwfl_timeseries)
+```

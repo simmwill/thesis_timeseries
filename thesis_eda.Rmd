@@ -40,7 +40,7 @@ nsp %>%
 ```
 
 #### Survey frequency by time and area
-```{r}
+```{r, fig.width = 12}
 nsp %>% 
   ggplot(aes(x = dov, y = zwfl)) +
   geom_point(size = 0.01) +
@@ -48,7 +48,7 @@ nsp %>%
   xlim(as.Date("1990-01-01"), as.Date("2006-12-31"))
 ```
 
-```{r}
+```{r, fig.width = 12}
 plot_zwfl_timeseries = function(area) {
   
   nsp %>% 
@@ -66,12 +66,12 @@ area_names =
   unique() %>% 
   as.character()
 
-## plot one area
+# plot one area
 plot_zwfl_timeseries("Shyamnagar/Debhata")
 
-## figure out how to plot all 25 using map()
+# figure out how to plot all 25 using map()
 # 
-# ## plot all
+# plot all
 # plots = map(area_names, plot_zwfl_timeseries)
 
 ```
