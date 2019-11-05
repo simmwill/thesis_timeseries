@@ -1,7 +1,9 @@
 ---
 title: 'Descriptive Plots by Area: ENACTS, 1990-2006'
 author: "Will Simmons"
-output: html_document
+output: github_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 ```{r, echo = FALSE}

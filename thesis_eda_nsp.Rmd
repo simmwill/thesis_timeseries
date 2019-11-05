@@ -1,10 +1,9 @@
 ---
 title: "Descriptive Plots by Area: NSP, 1990-2006"
 author: "Will Simmons"
-output: html_document
+output: github_document
 editor_options: 
   chunk_output_type: console
-  code_folding: hide
 ---
 ```{r, echo = FALSE}
 library(tidyverse)
