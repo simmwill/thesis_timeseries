@@ -107,6 +107,11 @@ count is measured (i.e., the denominator of the wasting proportion).
 
 ![Alt text](./images/eq3.gif)
 
+ 
+
+These models may be combined into multivariable Poisson regression
+models, which may also include interaction terms between exposures.
+
 ##### *Mediational Analyses*
 
 Next, we will test diarrheal disease as a potential mediator of each of

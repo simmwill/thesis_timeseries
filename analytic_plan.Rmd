@@ -207,6 +207,10 @@ First, we will model our outcome - daily count of wasting, *Y_i* - in univariate
 
 ![Alt text](./images/eq3.gif)
 
+&nbsp;
+
+These models may be combined into multivariable Poisson regression models, which may also include interaction terms between exposures.
+
 ##### *Mediational Analyses*
 
 Next, we will test diarrheal disease as a potential mediator of each of these relationships by adding a second term to each model:
