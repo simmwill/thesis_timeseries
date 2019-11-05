@@ -10,7 +10,7 @@ under-5 nutritional status in Bangladesh, 1990-2006
   - [Approach](#approach)
   - [References](#references)
 
-      �
+       
 
 -----
 
@@ -23,7 +23,7 @@ trends, seasonal patterns, and interannual variation.
 
 -----
 
-  �
+   
 
 ### Background
 
@@ -38,7 +38,7 @@ Bangladesh, a population and country disproportionately at-risk to
 climate variability and nutritional shocks (Brouwer et al, 2007;
 Stanberry et al, 2018).
 
-  �
+   
 
 ### Hypothesis
 
@@ -46,7 +46,7 @@ Short-term variation in magnitude and timing of childhood wasting will
 be explained by variation in magnitude and timing of regular climate
 events.
 
-  �
+   
 
 ### Data
 
@@ -56,7 +56,7 @@ events.
   - **ENACTS** climate data. Bangladesh, 1990-2006. N = 465000+ daily
     precipitation and temperature observations across 22 subdistricts.
 
-  �
+   
 
 ### Approach
 
@@ -81,12 +81,11 @@ Growth Standards (World Health Organization, 2006).
 
 ##### 1\. Unadjusted Poisson Regression Models
 
-$$
+\[
 log({E({Y_i|X_i})})
-$$
+\]
 
-
-  �
+   
 
 ### References
 
