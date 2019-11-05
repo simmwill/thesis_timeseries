@@ -196,17 +196,23 @@ First, we will model our outcome - daily count of wasting, *Y_i* - in univariate
 *Note:* Each of these Poisson regression models includes an offset term, *n_i*, which indicates the total sample out of which each daily wasting count is measured (i.e., the denominator of the wasting proportion). 
 
 &nbsp;
+&nbsp;
+&nbsp;
 
 ![Alt text](./images/eq1.gif)
 
 &nbsp;  
+&nbsp;
 
 ![Alt text](./images/eq2.gif)
 
 &nbsp;  
+&nbsp;
 
 ![Alt text](./images/eq3.gif)
 
+&nbsp;
+&nbsp;
 &nbsp;
 
 These models may be combined into multivariable Poisson regression models, which may also include interaction terms between exposures.
@@ -215,11 +221,17 @@ These models may be combined into multivariable Poisson regression models, which
 
 Next, we will test diarrheal disease as a potential mediator of each of these relationships by adding a second term to each model:
 
+&nbsp;
+&nbsp;
+&nbsp;
+
 ![Alt text](./images/dia_term.gif)
 
-We expect the addition of diarrhea to the model to bias each main effect towards the null.
 &nbsp;
 &nbsp;
+&nbsp;
+
+We expect the addition of diarrhea to the models to bias each main effect towards the null.
 
 ##### *Sample weight adjustments*
 
@@ -233,6 +245,8 @@ Use of the unadjusted analyses is justified by our belief that there is likely n
 In these unadjusted models, we may also choose to operationalize climate exposures as categories determined by percentile levels to aid in interpretation. For example, on days when precipitation was in the upper 25th percentile for a given region, prevalence of wasting increased by X compared to other days.
 
 Adjusted models could also be constructed from the above that consider region- and/or household-level socioeconomic status. However, these  may be better suited to analyses that consider seasonal and long-term trends in exposure and outcome (below).
+
+&nbsp;
 
 #### *Short-Term Effects Models* 
 ##### Filtering out long-term and seasonal patterns

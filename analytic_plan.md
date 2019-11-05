@@ -95,19 +95,21 @@ our study (1990-2006).
 *n\_i*, which indicates the total sample out of which each daily wasting
 count is measured (i.e., the denominator of the wasting proportion).
 
- 
+     
 
 ![Alt text](./images/eq1.gif)
 
+   
  
 
 ![Alt text](./images/eq2.gif)
 
+   
  
 
 ![Alt text](./images/eq3.gif)
 
- 
+     
 
 These models may be combined into multivariable Poisson regression
 models, which may also include interaction terms between exposures.
@@ -117,10 +119,14 @@ models, which may also include interaction terms between exposures.
 Next, we will test diarrheal disease as a potential mediator of each of
 these relationships by adding a second term to each model:
 
+     
+
 ![Alt text](./images/dia_term.gif)
 
-We expect the addition of diarrhea to the model to bias each main effect
-towards the null.    
+     
+
+We expect the addition of diarrhea to the models to bias each main
+effect towards the null.
 
 ##### *Sample weight adjustments*
 
@@ -149,6 +155,8 @@ Adjusted models could also be constructed from the above that consider
 region- and/or household-level socioeconomic status. However, these may
 be better suited to analyses that consider seasonal and long-term trends
 in exposure and outcome (below).
+
+ 
 
 #### *Short-Term Effects Models*
 
