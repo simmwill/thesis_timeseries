@@ -80,6 +80,8 @@ known as weight-for-length, the ratio of a child’s weight to height (or
 length). This measure is standardized into a Z-score using the WHO Child
 Growth Standards (World Health Organization, 2006).
 
+   
+
 ### Analyses
 
 #### *Unadjusted Poisson Regression Models*
@@ -186,10 +188,14 @@ Each of these methods would help us to answer the question: Apart from
 knowing the day of the year (season) and year (long-term trend level),
 does climate information help us predict childhood wasting?
 
+   
+
 ### Conclusion
 
 With the above analyses, we hope to address the effects of climate
 exposures on childhood acute malnutrition (wasting) in Bangladesh.
+
+   
 
 ### References
 
