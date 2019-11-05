@@ -83,37 +83,130 @@ nsp %>%
 ![](thesis_eda_files/figure-gfm/unnamed-chunk-5-1.png)<!-- -->
 
 ``` r
+## plotting function
 plot_zwfl_timeseries = function(area) {
   
   nsp %>% 
-    filter(area_name == area) %>% 
+    filter(surv_area == area) %>% 
     ggplot(aes(x = dov, y = zwfl)) +
     geom_point(size = 0.01) +
     xlim(as.Date("1990-01-01"), as.Date("2006-12-31"))
   
 }
 
-area_names = 
-  nsp %>% 
-  group_by(area_name) %>% 
-  select(area_name) %>% 
-  unique() %>% 
-  as.character()
 
-# plot one area
-plot_zwfl_timeseries("Shyamnagar/Debhata")
+## plot one area
+#  plot_zwfl_timeseries("1")
+
+
+# plot the rest
+for (i in 1:25) {
+  
+  f = plot_zwfl_timeseries(i)
+  print(f)
+  
+}
 ```
 
-    ## Warning: Removed 376 rows containing missing values (geom_point).
+    ## Warning: Removed 1226 rows containing missing values (geom_point).
 
 ![](thesis_eda_files/figure-gfm/unnamed-chunk-6-1.png)<!-- -->
 
-``` r
-# figure out how to plot all 25 using map()
-# 
-# plot all
-# plots = map(area_names, plot_zwfl_timeseries)
-```
+    ## Warning: Removed 1072 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-2.png)<!-- -->
+
+    ## Warning: Removed 963 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-3.png)<!-- -->
+
+    ## Warning: Removed 332 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-4.png)<!-- -->
+
+    ## Warning: Removed 343 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-5.png)<!-- -->
+
+    ## Warning: Removed 950 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-6.png)<!-- -->
+
+    ## Warning: Removed 467 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-7.png)<!-- -->
+
+    ## Warning: Removed 818 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-8.png)<!-- -->
+
+    ## Warning: Removed 283 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-9.png)<!-- -->
+
+    ## Warning: Removed 293 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-10.png)<!-- -->
+
+    ## Warning: Removed 369 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-11.png)<!-- -->
+
+    ## Warning: Removed 357 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-12.png)<!-- -->
+
+    ## Warning: Removed 561 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-13.png)<!-- -->
+
+    ## Warning: Removed 508 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-14.png)<!-- -->
+
+    ## Warning: Removed 501 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-15.png)<!-- -->
+
+    ## Warning: Removed 722 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-16.png)<!-- -->
+
+    ## Warning: Removed 970 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-17.png)<!-- -->
+
+    ## Warning: Removed 435 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-18.png)<!-- -->
+
+    ## Warning: Removed 439 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-19.png)<!-- -->
+
+    ## Warning: Removed 765 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-20.png)<!-- -->
+
+    ## Warning: Removed 777 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-21.png)<!-- -->
+
+    ## Warning: Removed 251 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-22.png)<!-- -->
+
+    ## Warning: Removed 559 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-23.png)<!-- -->
+
+    ## Warning: Removed 295 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-24.png)<!-- -->
+
+    ## Warning: Removed 376 rows containing missing values (geom_point).
+
+![](thesis_eda_files/figure-gfm/unnamed-chunk-6-25.png)<!-- -->
 
 #### Reading in ENACTS data
 

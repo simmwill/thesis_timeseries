@@ -1,14 +1,18 @@
 ---
-title: "Exploratory Data Analysis"
+title: "Exploratory Plots by Area"
 author: "Will Simmons"
-date: "11/4/2019"
-output: github_document
+output: html_document
 editor_options: 
   chunk_output_type: console
+  code_folding: hide
 ---
-```{r}
+```{r, echo = FALSE}
 library(tidyverse)
 library(readxl)
+
+if (!knitr::is_latex_output()) {
+  knitr::opts_chunk$set(dpi = 300, dev.args = list(png = list(type = "cairo")))
+}
 ```
 
 ```{r, echo = FALSE}
@@ -52,12 +56,16 @@ nsp = read_excel('./data/nsp_subset_datechanged.xlsx') %>%
 #### Table of survey area number by area name
 
 ```{r, echo = FALSE}
+area_names =
 nsp %>% 
+  mutate(surv_area = as.numeric(surv_area),
+         area_name = as.character(area_name)) %>% 
   group_by(surv_area, area_name) %>% 
   select(surv_area, area_name) %>% 
   arrange(surv_area) %>% 
-  unique() %>% 
-  knitr::kable()
+  unique()
+
+  knitr::kable(area_names)
 ```
 
 #### Survey frequency by time and area
@@ -69,31 +77,35 @@ nsp %>%
   xlim(as.Date("1990-01-01"), as.Date("2006-12-31"))
 ```
 
-```{r, fig.width = 12}
+```{r, fig.width = 12, warning = FALSE}
+## plotting function
 plot_zwfl_timeseries = function(area) {
   
   nsp %>% 
-    filter(area_name == area) %>% 
+    filter(surv_area == area) %>% 
     ggplot(aes(x = dov, y = zwfl)) +
     geom_point(size = 0.01) +
-    xlim(as.Date("1990-01-01"), as.Date("2006-12-31"))
+    xlim(as.Date("1990-01-01"), as.Date("2006-12-31")) +
+    labs(y = "Weight-for-length Z-score",
+         x = "Day",
+         title = area_names[[area,2]]) +
+    theme_light() +
+    theme(plot.title = element_text(hjust = 0.5))
   
 }
 
-area_names = 
-  nsp %>% 
-  group_by(area_name) %>% 
-  select(area_name) %>% 
-  unique() %>% 
-  as.character()
 
-# plot one area
-plot_zwfl_timeseries("Shyamnagar/Debhata")
+## plot one area
+#  plot_zwfl_timeseries("1")
 
-# figure out how to plot all 25 using map()
-# 
-# plot all
-# plots = map(area_names, plot_zwfl_timeseries)
+
+# plot the rest
+for (i in 1:25) {
+  
+  f = plot_zwfl_timeseries(i)
+  print(f)
+  
+}
 
 ```
 
@@ -106,34 +118,57 @@ enacts =
   enacts_read %>% 
   mutate(date = matlab2POS_dhaka(pull(enacts_read, matlab_daynum)),
          surv_area = as.ordered(surv_area)) %>%  ## using MATLAB date conversion defined in beginning (hidden)
-  select(surv_area, date, everything(), -matlab_daynum, -month, -year, -contains('runavg'), -hotday, -starts_with('movsum'), -daynum) %>% view
+  select(surv_area, date, everything(), -matlab_daynum, -month, -year, -contains('runavg'), -hotday, -starts_with('movsum'), -daynum)
 ```
 
 #### Preliminary ENACTS plots
 
 ```{r, fig.width = 12}
+plot_enacts = function(area) {
+  
 enacts %>% 
-  filter(surv_area == 4) %>% 
+  filter(surv_area == area) %>% 
   mutate(month_timeseries = cut(date, breaks = "month"),
          month_timeseries = as.Date(month_timeseries)) %>% 
   group_by(month_timeseries) %>% 
   summarize(mean_tmax = mean(tmax),
             mean_tmin = mean(tmin), 
             mean_precip = mean(precip)) %>% 
-  ggplot(aes(x = month_timeseries)) +
-  geom_line(aes(y = mean_tmax, color = 'mean_tmax')) + 
-  geom_line(aes(y = mean_tmin, color = 'mean_tmin')) +
-  geom_line(aes(y = mean_precip/2, color = "mean_precip")) +
-  scale_color_manual(breaks = c('mean_tmax', 'mean_tmin', 'mean_precip'),
-                     values = c('#A44D51', '#EED596', '#06826A')
-  ) %>% 
-  labs(x = "Day",
-       y = "Mean monthly temperature [°C]\n",
-       title = "Mean monthly weather patterns across data, Area 4") +
-  scale_y_continuous(sec.axis = sec_axis(~.*2, name = "Mean monthly precipitation [mm]\n")) +
+  pivot_longer(mean_tmax:mean_precip,
+               names_to = "climate_measure",
+               values_to = "climate_value") %>%
+  mutate(climate_measure = recode(climate_measure, 
+                                  'mean_tmax' = 'Tmax [°C]',
+                                  'mean_tmin' = 'Tmin [°C]',
+                                  'mean_precip' = 'Precip [mm]'),
+         climate_measure = as.factor(climate_measure),
+         climate_measure = fct_reorder(climate_measure, climate_value)) %>%
+  ggplot(aes(x = month_timeseries, y = climate_value)) +
+  geom_line(aes(color = climate_measure)) + 
+  scale_color_viridis_d(option = "D") + 
   theme_light() +
-  theme(legend.title = element_blank(),
-        plot.title = element_text(hjust = 0.5))
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Month",
+       y = "",
+       title = str_c("Mean monthly climate patterns, ", area_names[[area,2]])
+  )
+  
+}
+
+# # plot one
+# plot_enacts(10)
+
+## plot the rest
+# plot the rest
+for (i in 4:25) {
+  
+  f = plot_enacts(i)
+  print(f)
+  
+}
+            
   
 ```
 
