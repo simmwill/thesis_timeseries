@@ -27,7 +27,7 @@ matlab2POS_dhaka = function(x, timez = "Asia/Dhaka") {
 	# in the UTC time zone, then converts that to a time/date string that 
 	# should lose the time zone, and then it performs a second as.POSIXct()
 	# conversion on the time/date string to get a POSIXct value in the user's 
-	# specified timezone. Time zones are a goddamned nightmare.
+	# specified timezone. Time zones are a nightmare.
 	return(as.Date(as.POSIXct(strftime(as.POSIXct(secs, origin = '1970-1-1', 
 			tz = 'Asia/Dhaka'), format = '%Y-%m-%d %H:%M', 
 			tz = 'Asia/Dhaka', usetz = FALSE), tz = timez)))
@@ -74,7 +74,7 @@ enacts =
 #### Preliminary ENACTS plots
 
 ```{r, fig.width = 12}
-plot_enacts = function(area) {
+plot_monthly_enacts = function(area) {
   
 enacts %>% 
   filter(surv_area == area) %>% 
@@ -108,13 +108,13 @@ enacts %>%
 }
 
 # # plot one
-# plot_enacts(10)
+# plot_monthly_enacts(10)
 
 ## plot the rest
 # plot the rest
 for (i in 4:25) {
   
-  f = plot_enacts(i)
+  f = plot_monthly_enacts(i)
   print(f)
   
 }

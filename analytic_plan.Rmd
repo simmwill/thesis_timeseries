@@ -1,0 +1,215 @@
+---
+title: "Analytic plan"
+date: "Associations between climate variation and anthropometric indicators of under-5 nutritional status in Bangladesh, 1990-2006"
+output: 
+  github_document:
+    toc: TRUE
+fig_width: 12
+---
+
+```{r setup, include = FALSE, warning = FALSE}
+## libraries
+library(tidyverse)
+library(readxl)
+
+## trying to improve quality of output images
+if (!knitr::is_latex_output()) {
+  knitr::opts_chunk$set(dpi = 300, dev.args = list(png = list(type = "cairo")))
+}
+
+## time convert function
+#Convert a numeric  MATLAB datenum (days since 0000-1-1 00:00) to seconds in 
+#the Unix epoch (seconds since 1970-1-1 00:00). Specify a time zone if the 
+#input datenum is anything other than the GMT/UTC time zone. 
+matlab2POS_dhaka = function(x, timez = "Asia/Dhaka") {
+	days = x - 719529 	# 719529 = days from 1-1-0000 to 1-1-1970
+	secs = days * 86400 # 86400 seconds in a day
+	# This next string of functions is a complete disaster, but it works.
+	# It tries to outsmart R by converting the secs value to a POSIXct value
+	# in the UTC time zone, then converts that to a time/date string that 
+	# should lose the time zone, and then it performs a second as.POSIXct()
+	# conversion on the time/date string to get a POSIXct value in the user's 
+	# specified timezone. Time zones are a nightmare.
+	return(as.Date(as.POSIXct(strftime(as.POSIXct(secs, origin = '1970-1-1', 
+			tz = 'Asia/Dhaka'), format = '%Y-%m-%d %H:%M', 
+			tz = 'Asia/Dhaka', usetz = FALSE), tz = timez)))
+}
+
+```
+
+```{r nsp_data, echo = FALSE, warning = FALSE, cache = TRUE}
+## creating nsp dataset
+
+nsp_read = read_excel('./data/nsp_subset_datechanged.xlsx') 
+
+nsp = 
+nsp_read %>% 
+  select(-rd, -thana, -union, -vill, -para, -match_quality, -year) %>% 
+  mutate(dov = as.Date(dov), ## converting POSIXct to Date
+         surv_area = as.ordered(surv_area), 
+         area_name = as.factor(area_name),
+         area_name = forcats::fct_reorder(area_name, as.numeric(surv_area)), ## area_name is factor ordered by surv_area
+         zwfl = as.numeric(zwfl), ## NAs will be introduced by coercion
+         zlen = as.numeric(zlen),
+         zwei = as.numeric(zwei),
+         ageindays = as.numeric(ageindays)
+  ) 
+
+## area names vector (useful for both NSP and ENACTS)
+area_names =
+nsp %>% 
+  mutate(surv_area = as.numeric(surv_area),
+         area_name = as.character(area_name)) %>% 
+  group_by(surv_area, area_name) %>% 
+  select(surv_area, area_name) %>% 
+  arrange(surv_area) %>% 
+  unique()
+
+## function to plot raw NSP timeseries by area
+plot_zwfl_timeseries = function(area) {
+  
+  nsp %>% 
+    filter(surv_area == area) %>% 
+    ggplot(aes(x = dov, y = zwfl)) +
+    geom_point(size = 0.01) +
+    xlim(as.Date("1990-01-01"), as.Date("2006-12-31")) +
+    labs(y = "Weight-for-length Z-score",
+         x = "Day",
+         title = area_names[[area,2]]) +
+    theme_light() +
+    theme(plot.title = element_text(hjust = 0.5))
+  
+}
+
+## plot one NSP area
+#  plot_zwfl_timeseries(1)
+         
+```
+
+```{r enacts, echo = FALSE, warning = FALSE, cache = TRUE}
+## reading and cleaning data
+
+enacts_read = read_excel('./data/ENACTS.xlsx')
+
+enacts =
+  enacts_read %>% 
+  mutate(date = matlab2POS_dhaka(pull(enacts_read, matlab_daynum)),
+         surv_area = as.ordered(surv_area)) %>%  ## using MATLAB date conversion defined in beginning (hidden)
+  select(surv_area, date, everything(), -matlab_daynum, -month, -year, -contains('runavg'), -hotday, -starts_with('movsum'), -daynum)
+
+## function to plot monthly mean ENACTS by area
+plot_monthly_enacts = function(area) {
+  
+enacts %>% 
+  filter(surv_area == area) %>% 
+  mutate(month_timeseries = cut(date, breaks = "month"),
+         month_timeseries = as.Date(month_timeseries)) %>% 
+  group_by(month_timeseries) %>% 
+  summarize(mean_tmax = mean(tmax),
+            mean_tmin = mean(tmin), 
+            mean_precip = mean(precip)) %>% 
+  pivot_longer(mean_tmax:mean_precip,
+               names_to = "climate_measure",
+               values_to = "climate_value") %>%
+  mutate(climate_measure = recode(climate_measure, 
+                                  'mean_tmax' = 'Tmax [°C]',
+                                  'mean_tmin' = 'Tmin [°C]',
+                                  'mean_precip' = 'Precip [mm]'),
+         climate_measure = as.factor(climate_measure),
+         climate_measure = fct_reorder(climate_measure, climate_value)) %>%
+  ggplot(aes(x = month_timeseries, y = climate_value)) +
+  geom_line(aes(color = climate_measure)) + 
+  scale_color_viridis_d(option = "D") + 
+  theme_light() +
+  theme(legend.position = "bottom",
+        legend.title = element_blank(),
+        plot.title = element_text(hjust = 0.5)) +
+  labs(x = "Month",
+       y = "",
+       title = str_c("Mean monthly climate patterns, ", area_names[[area,2]])
+  )
+  
+}
+
+## plot one
+# plot_monthly_enacts(10)
+
+```
+&nbsp;
+&nbsp;
+&nbsp;
+&nbsp;
+
+***
+### Summary
+Using Poisson regression models, we will estimate effects of various climate exposures on childhood acute nutritional outcomes. We will consider climate exposures at multiple timescales, including long-term trends, seasonal patterns, and interannual variation.
+
+***
+
+&nbsp;
+&nbsp;
+
+### Background
+Climate variability has been shown to influence nutrition via several pathways, including food and financial insecurity, gender-based disempowerment, health services, and environment (Herforth et al, 2014). However, research seldom differentiates nutritional vulnerabilities resulting from climate variation at multiple timescales, e.g. seasonal patterns versus short-term shocks (Füssel & Klein, 2006). This study considers such climate-nutrition associations among children in Bangladesh, a population and country disproportionately at-risk to climate variability and nutritional shocks (Brouwer et al, 2007; Stanberry et al, 2018).
+
+&nbsp;
+&nbsp;
+
+### Hypothesis  
+Short-term variation in magnitude and timing of childhood wasting will be explained by variation in magnitude and timing of regular climate events.
+
+&nbsp;
+&nbsp;
+
+### Data  
+
+  * **Nutrition Surveillance Project** (NSP). Bangladesh, 1990-2006. N = 796996 measurements of child anthropometry, health, and household characteristics.
+  * **ENACTS** climate data. Bangladesh, 1990-2006. N = 465000+ daily precipitation and temperature observations across 22 subdistricts.
+
+&nbsp;
+&nbsp;
+
+### Approach  
+
+#### *Exposures of interest.*
+Our climate-related exposures of interest here come from the ENACTS dataset detailed above. They include:
+
+  * Daily-level precipitation, in millimeters
+  * Daily-level maximum temperature, in degrees Celsius
+  * Daily-level minimum temperature, in degrees Celsius
+  
+#### *Outcome of interest.*
+Our outcome of interest, broadly, is acute nutrition status in children under age 5. This is operationalized using an anthropometric measure known as weight-for-length, the ratio of a child's weight to height (or length). This measure is standardized into a Z-score using the WHO Child Growth Standards (World Health Organization, 2006).
+
+#### *Planned analyses.*
+
+##### 1. Unadjusted Poisson Regression Models
+
+$$
+log({E({Y_i|X_i})})
+$$
+
+
+
+
+
+
+
+
+
+
+
+&nbsp;
+&nbsp;
+
+### References  
+
+1. Herforth A, Frongillo EA, Sassi F, et al. (2014). Toward an integrated approach to nutritional quality, environmental sustainability, and economic viability: research and measurement gaps. Annals of the New York Academy of Sciences, 1332(1):1-21. https://doi.org/10.1111/nyas.12552.
+
+2. Füssel, H.‐M. & R.J. Klein. (2006). Climate change vulnerability assessments: an evolution of conceptual thinking. Clim. Change, 75:301–329. https://doi.org/10.1007/s10584-006-0329-3.
+
+3. Brouwer R., Akter S., Brander L. & Haque, E. (2007). Socioeconomic Vulnerability and Adaptation to Environmental Risk: A Case Study of Climate Change and Flooding in Bangladesh. Risk Analysis, 27:313-326. https://doi.org/10.1111/j.1539-6924.2007.00884.x
+
+4. Stanberry LR, Thomson MC & James W. (2018). Prioritizing the needs of children in a changing climate. PLoS Medicine, 15(8):1-4. https://doi.org/10.1371/journal.pmed.1002627.
+
+5. Word Health Organization (2006). WHO Multicentre Growth Reference Study Group. WHO Child Growth Standards: Length/height-for-age, weight-for-age, weight-for-length, weight-for-height and body mass index-for-age: Methods and development. Geneva: World Health Organization. https://www.who.int/childgrowth/standards/Technical_report.pdf?ua=1.
