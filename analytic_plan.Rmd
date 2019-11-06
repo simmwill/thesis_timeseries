@@ -142,7 +142,7 @@ enacts %>%
 
 ***
 ### Summary
-Using Poisson regression models, we hope to estimate effects of various climate exposures on childhood acute nutritional outcomes. We will consider climate exposures at multiple timescales, including long-term trends, seasonal patterns, and interannual variation.
+Using Poisson regression models, we hope to estimate effects of various climate exposures on childhood acute nutritional outcomes. We will consider climate exposures at multiple timescales, including seasonal patterns and interannual variation.
 
 ***
 
@@ -177,7 +177,7 @@ Our climate-related exposures of interest here come from the ENACTS dataset deta
   3. Daily-level minimum temperature, in degrees Celsius
   
 #### *Outcome of interest*
-Our outcome of interest, broadly, is acute nutrition status in children under age 5. This is operationalized using an anthropometric measure known as weight-for-length, the ratio of a child's weight to height (or length). This measure is standardized into a Z-score using the WHO Child Growth Standards (World Health Organization, 2006).
+Our outcome of interest, broadly, is acute nutritional status in children under age 5. This is operationalized using an anthropometric measure known as weight-for-length, the ratio of a child's weight to length (or height). This measure is standardized into a Z-score using the WHO Child Growth Standards (World Health Organization, 2006).
 
 &nbsp;
 &nbsp;
@@ -231,25 +231,25 @@ Next, we will test diarrheal disease as a potential mediator of each of these re
 &nbsp;
 &nbsp;
 
-We expect the addition of diarrhea to the models to bias each main effect towards the null.
+We expect the addition of diarrhea to the models to bias each main effect towards the null as a mediatior.
 
 ##### *Sample weight adjustments*
 
-Since our outcome of interest, child weight-for-length Z-score, was sampled using a multistage cluster design, we will explore the use of sampling weights to increase the precision of our inference. For now, we will focus on the unadjusted and mediational analyses detailed above.
+Since our outcome of interest, child weight-for-length Z-score, was sampled using a multistage cluster design, we will explore the use of sampling weights to increase the precision of our inferences. For now, we will focus on the unadjusted and mediational analyses detailed above.
 
 Use of the unadjusted analyses is justified by our belief that there is likely no differential misclassification of exposure or outcome in our sample. Assuming our sample collection was not biased at baseline and representative at the subdistrict level, non-differential misclassification of exposure and/or disease will only bias measures of association towards the null - which, if anything, makes any observed associations more robust.
 
 
 ##### *Other considerations for unadjusted models*
 
-In these unadjusted models, we may also choose to operationalize climate exposures as categories determined by percentile levels to aid in interpretation. For example, on days when precipitation was in the upper 25th percentile for a given region, prevalence of wasting increased by X compared to other days.
+In these unadjusted models, we may also choose to operationalize climate exposures as categories determined by percentile levels to aid in interpretation. For example, on days when precipitation was in the upper 25th percentile for a given region, prevalence of wasting was X times the prevalence compared to all other days.
 
-Adjusted models could also be constructed from the above that consider region- and/or household-level socioeconomic status. However, these  may be better suited to analyses that consider seasonal and long-term trends in exposure and outcome (below).
+Adjusted models could also be constructed from the above models that consider region- and/or household-level socioeconomic status. However, these  may be better suited to analyses that consider seasonal and long-term trends in exposure and outcome (below).
 
 &nbsp;
 
 #### *Short-Term Effects Models* 
-##### Filtering out long-term and seasonal patterns
+##### Filtering out long-term and seasonal patterns in wasting
 
 Both seasonal (Fig. 1) and long-term (Fig. 2) trends in child wasting have been seen in previous analyses. 
 
@@ -265,12 +265,12 @@ Both seasonal (Fig. 1) and long-term (Fig. 2) trends in child wasting have been 
 
 These time-dependent patterns are important to consider, especially if we desire a measure of association that is based on variation beyond what is expected within the year and across time. Here, we would like to observe the isolated effects of interannual variation in climate exposures on our outcome of interest, child wasting.
 
-We can "filter" the effects of seasonal patterns by including a pre-fitted Fourier curve as a fixed effect in a Poisson regression model (with count of child wasting as the outcome, as above). We can also include a linear function of time to capture long-term trends.
+We can "filter" the effects of seasonal patterns by including a pre-fitted Fourier curve as a fixed effect in a Poisson regression model (with the same outcome as above, count of child wasting). We can also include a linear function of time to capture long-term trends in wasting.
 
 From here, we can approach the question of isolated interannual variability in at least two ways:
 
-  1. Compare a crude Poisson regression model (with the only predictors being the Fourier term and the linear function) with a model including data on precipitation, minimum temperature, and/or maximum temperature.
-  2. Extract the residuals from the crude Poisson regression model in #1, and model these residuals using data on precipitation, minimum temperature, and/or maximum temperature.
+  1. Compare a crude Poisson regression model (with the only predictors being the seasonal Fourier term and the linear time function) with a model including data on precipitation, minimum temperature, and/or maximum temperature; and/or,
+  2. Extract the residuals from a crude Poisson regression model detailed in #1, and model these residuals using data on precipitation, minimum temperature, and/or maximum temperature.
   
 Each of these methods would help us to answer the question: Apart from knowing the day of the year (season) and year (long-term trend level), does climate information help us predict childhood wasting?
 
@@ -279,7 +279,8 @@ Each of these methods would help us to answer the question: Apart from knowing t
 
 ### Conclusion
 
-With the above analyses, we hope to address the effects of climate exposures on childhood acute malnutrition (wasting) in Bangladesh.
+With the above analyses, we hope to address the effects of climate exposures on childhood acute malnutrition (wasting) in Bangladesh. Our ultimate goal is to build upon existing relationships with the Government of Bangladesh and local NGOs, continuing to inform nutrition-sensitive climate adaptations and interventions in Bangladesh.
+
 
 &nbsp;
 &nbsp;
