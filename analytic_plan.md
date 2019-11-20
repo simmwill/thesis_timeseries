@@ -178,8 +178,9 @@ term, N*i*, which indicates the total sample out of which each daily or
 weekly wasting count is measured (i.e., the denominator of the wasting
 proportion/prevalence). Each model will also control for seasonal and
 long-term trends in wasting in order to predict within-year,
-sub-seasonal variation. For more information here, see section below:
-*Note: Filtering out long-term and seasonal patterns in wasting.*
+sub-seasonal variation. For more information, see section below: [*Note:
+Filtering out long-term and seasonal patterns in
+wasting.*](https://github.com/simmwill/thesis_timeseries/blob/master/analytic_plan.md#note-filtering-out-long-term-and-seasonal-patterns-in-wasting)
 
      
 
