@@ -5,28 +5,39 @@ date: "11/5/2019"
 output: github_document
 ---
 
-$$
-(1) \hspace{20mm} log\{E({Y_i|X_{i1})}\} = log(n_i) + \beta_0 + \beta_1X_{i1}\\
-\hspace{20mm}\\
-\hspace{20mm} \text{Where: }\\
-\hspace{20mm} n_i = \text{offset}\\
-\hspace{20mm}X_{i1} = \text{precipitation}\ (mm)
-$$
-
-$$
-(2) \hspace{20mm} log\{E({Y_i|X_{i2})}\} = log(n_i) + \beta_0 + \beta_1X_{i2}\\
-\hspace{20mm}\\
-\hspace{20mm} \text{Where: }\\
-\hspace{20mm} n_i = \text{offset}\\
-\hspace{20mm}X_{i2} = \text{maximum temperature}\ (^{\circ}C)
-$$
+```{r}
+# these are constructed at https://www.codecogs.com/latex/eqneditor.php
+```
 
 
 $$
-(3) \hspace{20mm} log\{E({Y_i|X_{i3})}\} = log(n_i) + \beta_0 + \beta_1X_{i3}\\
+(1) \hspace{20mm} log\{E({Y_i)}\} = \beta_0 + f(X_{i1}) + g(X_{i2}) + \beta_1X_{i3} + log(n_i) \\
 \hspace{20mm}\\
 \hspace{20mm} \text{Where: }\\
 \hspace{20mm} n_i = \text{offset}\\
+\hspace{20mm}f(X_{i1}) = \text{Fourier function for seasonal wasting trend}\\
+\hspace{20mm}g(X_{i2}) = \text{linear function for long-term wasting trend}\\
+\hspace{20mm}X_{i3} = \text{precipitation}\ (mm)
+$$
+
+$$
+(2) \hspace{20mm} log\{E({Y_i)}\} = \beta_0 + f(X_{i1}) + g(X_{i2}) + \beta_1X_{i3} + log(n_i) \\
+\hspace{20mm}\\
+\hspace{20mm} \text{Where: }\\
+\hspace{20mm} n_i = \text{offset}\\
+\hspace{20mm}f(X_{i1}) = \text{Fourier function for seasonal wasting trend}\\
+\hspace{20mm}g(X_{i2}) = \text{linear function for long-term wasting trend}\\
+\hspace{20mm}X_{i3} = \text{minimum temperature}\ (^{\circ}C)
+$$
+
+
+$$
+(3) \hspace{20mm} log\{E({Y_i)}\} = \beta_0 + f(X_{i1}) + g(X_{i2}) + \beta_1X_{i3} + log(n_i) \\
+\hspace{20mm}\\
+\hspace{20mm} \text{Where: }\\
+\hspace{20mm} n_i = \text{offset}\\
+\hspace{20mm}f(X_{i1}) = \text{Fourier function for seasonal wasting trend}\\
+\hspace{20mm}g(X_{i2}) = \text{linear function for long-term wasting trend}\\
 \hspace{20mm}X_{i3} = \text{minimum temperature}\ (^{\circ}C)
 $$
 $$
