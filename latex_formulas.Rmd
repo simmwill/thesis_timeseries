@@ -27,7 +27,7 @@ $$
 \hspace{20mm} n_i = \text{offset}\\
 \hspace{20mm}f(X_{i1}) = \text{Fourier function for seasonal wasting trend}\\
 \hspace{20mm}g(X_{i2}) = \text{linear function for long-term wasting trend}\\
-\hspace{20mm}X_{i3} = \text{minimum temperature}\ (^{\circ}C)
+\hspace{20mm}X_{i3} = \text{maximum temperature}\ (^{\circ}C)
 $$
 
 
@@ -41,8 +41,25 @@ $$
 \hspace{20mm}X_{i3} = \text{minimum temperature}\ (^{\circ}C)
 $$
 $$
-\\\hspace{18mm}\beta_2X_{i4}\\
+\\\hspace{18mm}\beta_2X_{2ij}\\
 \\
 \hspace{20mm} \text{Where: }\\
-\hspace{20mm}X_{i4} = \text{past 24-hour diarrhea}\ (1=yes, 0=no)
+\hspace{20mm}X_{2ij} = \text{past 24-hour diarrhea}\ (1=yes, 0=no)
+$$
+
+```{r}
+## new one with stacked bracket for weather terms
+```
+
+$$
+(1) \hspace{20mm} log\{E({Y_{ij})}\} = \beta_0 + f(x_i) + g(x_i) + \beta_1X_{1ij} + log(n_{ij}) \\
+\hspace{20mm}\\
+\hspace{20mm} \text{Where: }\\
+\hspace{20mm}f(x_i) = \text{Fourier function for seasonal wasting trend for area \textit{i}}\\
+\hspace{20mm}g(x_i) = \text{linear function for long-term wasting trend for area \textit{i}}\\
+\hspace{20mm}X_{1ij} = \begin{cases}\text{precipitation}\ (mm) \text{ for area \textit{i}, observation \textit{j}}
+\\ \text{minimum temperature}\ (^{\circ}C) \text{ for area \textit{i}, observation \textit{j}}
+\\ \text{maximum temperature}\ (^{\circ}C) \text{ for area \textit{i}, observation \textit{j}}
+\end{cases}\\
+\hspace{20mm} n_{ij} = \text{offset for area \textit{i}, observation \textit{j}}\\ 
 $$

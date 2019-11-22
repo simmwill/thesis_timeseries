@@ -7,6 +7,7 @@ malnutrition: Bangladesh, 1990-2006
       - [Hypothesis and research
         questions](#hypothesis-and-research-questions)
       - [Analytic methods](#analytic-methods)
+      - [DAG](#dag)
   - [**Details**](#details)
       - [Background](#background)
       - [Hypotheses](#hypotheses)
@@ -51,10 +52,9 @@ Broadly, we are interested in answering the following questions:
     childhood wasting? (In other words: can weekly weather factors
     explain departures in wasting prevalence from the usual seasonal
     pattern?)
-2.  **Between/across years.** Are there climatic predictors of the
-    timing and magnitude of specific seasonal wasting patterns seen
-    across years (i.e. the observed ‘wasting season’ from May to
-    October)?
+2.  **Between/across years.** Do anomalies predict the timing and
+    magnitude of specific seasonal wasting patterns seen across years
+    (i.e. the observed ‘wasting season’ from May to October)?
 
 For both questions, our exposure variables of focus will comprise day-
 or week-level weather factors: precipitation, maximum temperature, and
@@ -78,13 +78,17 @@ options:
         weather factors predict seasonal cycles in wasting.
 2.  If seasonal analyses aggregated across geographic areas appropriate,
     another option is to build models to predict the timing and
-    magnitude of the seasonal wasting cycle using yearly variation in
+    magnitude of the seasonal wasting cycle using yearly anomalies in
     weather factors as predictors.
       - First, we could judge the appropriateness of geographic
         aggregation by comparing shorter-term effects across areas
         during our Question 1 analyses.
 
    
+
+## DAG
+
+![dag\_draft](./images/presentation_dag.png)
 
 -----
 
@@ -115,10 +119,10 @@ observed childhood wasting. Specifically:
 temperature, and precipitation will be positively associated with
 prevalence of childhood wasting (acute undernutrition).
 
-(Secondary Hypothesis) We hypothesize that shifts in timing and
+(Secondary Hypothesis) We hypothesize that anomalies in timing and
 magnitude of regularly-occurring climatic events (e.g. the monsoon
-season) will be positively associated in shifts in timing and magnitude
-of childhood wasting (acute undernutrition).
+season) will be positively associated with shifts in timing and
+magnitude of childhood wasting (acute undernutrition).
 
    
 
@@ -184,17 +188,7 @@ wasting.*](https://github.com/simmwill/thesis_timeseries/blob/master/analytic_pl
 
      
 
-![Alt text](./images/eq1_new.gif)
-
-   
- 
-
-![Alt text](./images/eq2_new.gif)
-
-   
- 
-
-![Alt text](./images/eq3_new.gif)
+![eq1](./images/eq_new_stackbracket.gif)
 
      
 
@@ -209,7 +203,7 @@ model:
 
      
 
-![Alt text](./images/dia_term.gif)
+![dia\_eq](./images/dia_term.gif)
 
      
 

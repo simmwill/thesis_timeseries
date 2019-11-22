@@ -152,7 +152,7 @@ We hypothesize that weather and climate patterns play key roles in determining c
 Broadly, we are interested in answering the following questions:  
 
   1. __Within year.__ Controlling for observed seasonal patterns and long-term trends in wasting, do weather factors have an effect on childhood wasting? (In other words: can weekly weather factors explain departures in wasting prevalence from the usual seasonal pattern?)
-  2. __Between/across years.__ Are there climatic predictors of the timing and magnitude of specific seasonal wasting patterns seen across years (i.e. the observed 'wasting season' from May to October)?
+  2. __Between/across years.__ Do anomalies predict the timing and magnitude of specific seasonal wasting patterns seen across years (i.e. the observed 'wasting season' from May to October)?
 
 For both questions, our exposure variables of focus will comprise day- or week-level weather factors: precipitation, maximum temperature, and minimum temperature. Appropriate lag structures will also be explored.
 
@@ -163,11 +163,16 @@ Question 2 is a bit more challenging, but we are considering several options:
 
   1. Use methods similar to Hashizume et al (2010), in which the authors compare the average annual incidence pattern of cholera predicted by each weather factor with an observed average seasonal pattern in cholera.
       * Using this method, we would receive an estimate of how well weather factors predict seasonal cycles in wasting.
-  2. If seasonal analyses aggregated across geographic areas appropriate, another option is to build models to predict the timing and magnitude of the seasonal wasting cycle using yearly variation in weather factors as predictors. 
+  2. If seasonal analyses aggregated across geographic areas appropriate, another option is to build models to predict the timing and magnitude of the seasonal wasting cycle using yearly anomalies in weather factors as predictors. 
       * First, we could judge the appropriateness of geographic aggregation by comparing shorter-term effects across areas during our Question 1 analyses.
 
 &nbsp;
 &nbsp;
+
+
+## DAG
+
+![dag_draft](./images/presentation_dag.png)
 
 ***
 
@@ -187,7 +192,7 @@ We hypothesize that abnormal weather and climate will predict changes in observe
 We hypothesize that abnormal (< 5th percentile or > 95th percentile for area-specific data) maximum temperature, minimum temperature, and precipitation will be positively associated with prevalence of childhood wasting (acute undernutrition).
 
 (Secondary Hypothesis)
-We hypothesize that shifts in timing and magnitude of regularly-occurring climatic events (e.g. the monsoon season) will be positively associated in shifts in timing and magnitude of childhood wasting (acute undernutrition). 
+We hypothesize that anomalies in timing and magnitude of regularly-occurring climatic events (e.g. the monsoon season) will be positively associated with shifts in timing and magnitude of childhood wasting (acute undernutrition). 
 
 &nbsp;
 &nbsp;
@@ -232,17 +237,7 @@ The sub-seasonal timescale at which these time series analyses will be conducted
 &nbsp;
 &nbsp;
 
-![Alt text](./images/eq1_new.gif)
-
-&nbsp;  
-&nbsp;
-
-![Alt text](./images/eq2_new.gif)
-
-&nbsp;  
-&nbsp;
-
-![Alt text](./images/eq3_new.gif)
+![eq1](./images/eq_new_stackbracket.gif)
 
 &nbsp;
 &nbsp;
@@ -258,7 +253,7 @@ As a sub-analysis, we will test diarrheal disease as a potential mediator of eac
 &nbsp;
 &nbsp;
 
-![Alt text](./images/dia_term.gif)
+![dia_eq](./images/dia_term.gif)
 
 &nbsp;
 &nbsp;
