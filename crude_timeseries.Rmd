@@ -1,0 +1,624 @@
+---
+title: "Crude Timeseries Analysis"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+
+library(tidyverse)
+library(readxl)
+library(knitr)
+library(kableExtra)
+
+enacts = readRDS(file = './data/enacts')
+nsp_enacts = readRDS(file = './data/nsp_enacts')
+nsp_enacts_extreme = readRDS('./data/nsp_enacts_extreme')
+
+options(scipen = 999)
+
+```
+
+Ideas:
+
+  * Climate anomaly variables
+    + For now, indicator variables of "No Anomaly" (within 2 SD of area-week long-term average), "High Anomaly" (>2 SD), "Low Anomaly" (<2 SD) ?
+    + To make more interpretable, can also include one with units? (e.g. certain temperature/precipitation deviation had X effect...)
+
+# Creating climate anomaly variable(s)
+
+```{r distributions}
+
+## getting a sense of distributions of climate variables across different timescales (see note at bottom of chunk)
+
+area = 4:25
+week = 1:53
+month = 1:12
+areas_months = data.table::CJ(area, month) # cross join (CJ) to create combinations of areas and months
+areas_weeks = data.table::CJ(area, week)
+
+summarize_enacts = function(z) {
+  
+  enacts %>% 
+    # filter(surv_area == as.numeric(areas_months[z,1]),
+    #        lubridate::month(date) == as.numeric(areas_months[z,2])) %>% 
+    filter(surv_area == as.numeric(areas_weeks[z,1]),
+           lubridate::week(date) == as.numeric(areas_weeks[z,2])) %>% 
+    arrange(date) %>% 
+    summarize(
+      p_mean = mean(precip),
+      p_sd = sd(precip),
+      p_median = median(precip),
+      tmax_mean = mean(tmax),
+      tmax_sd = sd(tmax), 
+      tmax_median = median(tmax)
+    ) %>% 
+    mutate(
+    #   surv_area = as.numeric(areas_months[z,1]),
+    #   month = as.numeric(areas_months[z,2])) %>% 
+    # select(surv_area, month, everything())
+      surv_area = as.numeric(areas_weeks[z,1]),
+      week = as.numeric(areas_weeks[z,2])) %>%
+    select(surv_area, week, everything())
+  
+}
+
+enacts_summaries =
+  map_dfr(1:1166, summarize_enacts)
+
+## NOTES
+
+# here, I was trying to get a sense of variation in climate predictors within-area across (1) weeks and (2) months
+# my 'climate abnormality' variable will probably be in terms of standard deviation at first, but would like it to be more interpretable by using actual units
+# thus, later on, want to try a climate abnormality predictor that is actually coded in units (degrees C or mm precip), rather than just standard deviations specific to area and month
+  # but standard deviations may be the most robust approach - interpretable standardized across areas
+
+# median precip SD across weeks = ~11 mm
+# median tmax SD across weeks = ~2 degrees C
+
+```
+
+```{r anomalies}
+
+## actually creating anomaly variable - for now, standardized version (absolute distance of week's mean measurement from average long-term measurement)
+
+
+```
+
+
+
+# Creating Fourier series by area
+
+```{r ts_data}
+library(tsModel)
+
+# prepping dataframe with deviation variables (p_deviation, tmax_deviation)
+
+nsp_enacts_ts =
+  nsp_enacts_extreme %>% 
+  select(1:9) %>% 
+  mutate(surv_area = as.ordered(surv_area),
+         week = lubridate::week(dov),
+         month = lubridate::month(dov),
+         year = lubridate::year(dov)
+         ) %>% 
+  group_by(surv_area, week) %>% 
+  mutate(p_mean_longterm_week = mean(precip),
+         tmax_mean_longterm_week = mean(tmax),
+         p_sd_longterm_week = sd(precip), # week-specific (1-52, regardless of year) long-term SD
+         tmax_sd_longterm_week = sd(tmax)) %>% # week-specific (1-52, regardless of year) long-term SD 
+  ungroup(week) %>% 
+  mutate(week_total = week + 52 * (year - 1990), # this is crude since technically more than 52 weeks per year
+         month_total = month + 12 * (year - 1990)
+  ) %>% 
+  group_by(surv_area, week_total) %>% 
+  mutate(p_mean_week = mean(precip),
+         tmax_mean_week = mean(tmax),
+         p_deviation = p_mean_week - p_mean_longterm_week,                  ## originally had these as absolute value, but 
+         tmax_deviation = tmax_mean_week - tmax_mean_longterm_week) %>%     ##   will do piecewise instead - two indicators
+  group_by(surv_area, week_total, p_deviation, tmax_deviation) %>%               ##   for each, one for pos dev one for neg dev
+  summarize(
+    wasting_total = sum(wasting),
+    offset = n()) %>% 
+    # p_deviation = abs(p_mean_week - p_mean_longterm_week),
+    # tmax_deviation = abs(tmax_mean_week - tmax_mean_longterm_week)) %>%
+  arrange(surv_area, week_total) # %>% sample_n(10) %>% view()
+
+nsp_enacts_ts =
+  nsp_enacts_ts %>% 
+  mutate(
+    p_deviation_positive =                    ## for each of these deviation variables:
+      as.numeric(                             ##   positive deviation and negative deviation parameters for piecewise function
+        case_when(                            ##   use p_deviation value when sign matches indicator; 0 otherwise
+          p_deviation > 0  ~ p_deviation,     ##   include as pairs in regression models
+          p_deviation <= 0 ~ 0,               ##   (how to do interaction terms, if that's something relevant? address later)
+          TRUE ~ as.numeric(p_deviation)
+        )
+      ),
+    p_deviation_negative =
+      as.numeric(
+        case_when(
+          p_deviation < 0  ~ p_deviation,
+          p_deviation >= 0 ~ 0,
+          TRUE ~ as.numeric(p_deviation)
+        )
+      ),
+    tmax_deviation_positive =
+      as.numeric(
+        case_when(
+          tmax_deviation > 0  ~ tmax_deviation,
+          tmax_deviation <= 0 ~ 0,
+          TRUE ~ as.numeric(tmax_deviation)
+        )
+      ),
+    tmax_deviation_negative =
+      as.numeric(
+        case_when(
+          tmax_deviation < 0  ~ tmax_deviation,
+          tmax_deviation >= 0 ~ 0,
+          TRUE ~ as.numeric(tmax_deviation)
+        )
+      )
+  )
+
+# raw plot of all areas together - can see seasonal trends across areas
+
+nsp_enacts_ts %>% 
+  ungroup() %>% 
+  filter(offset > 30) %>% # making sure weekly sample big enough - revisit this
+  ggplot(aes(x = week_total, y = wasting_total / offset)) +
+  geom_point()
+```
+
+
+```{r fourier}
+# testing fourier function with one area
+
+fourier_df = 
+  nsp_enacts_ts %>% 
+  ungroup() %>% 
+  filter(surv_area == 25, offset > 30) %>% # do I need to make sure weekly sample big enough? - revisit this (e.g. offset > 30)
+  arrange(week_total)
+
+fourier_test =
+  harmonic(fourier_df$week_total, nfreq = 4, period = 52)
+
+test_model = 
+  glm(
+    data = fourier_df,
+    wasting_total ~ offset(log(offset)) + fourier_test + week_total,
+    family = "poisson",
+    maxit = 100
+  )
+
+summary(test_model)
+
+# COMPUTE PREDICTED WASTING COUNT FROM THIS MODEL
+test_predict = 
+  predict(test_model, type = "response")
+
+####################
+# FIGURE - FOURIER #
+####################
+
+# plot(fourier_df$week_total, fourier_df$wasting_total, pch = 19, cex = 0.2, col = grey(0.6),
+#   main="Sine-cosine functions (Fourier terms)",ylab="Daily count of wasting",
+#   xlab="Date")
+# lines(fourier_df$week_total, test_predict, lwd = 2)
+
+fourier_df %>% 
+  ggplot(aes(x = week_total,
+             y = wasting_total/offset)) +
+  geom_point() +
+  geom_line(aes(x = week_total,
+                y = test_predict/offset,
+                color = 'red'),
+            size = 1) +
+  labs(title = "Sine-cosine functions (Fourier terms) - Area 25",
+       x = "Date",
+       y = "Weekly proportion of wasting") +
+  theme_light() +
+  theme(legend.position = 'none')
+
+# GENERATE RESIDUALS
+test_resid = 
+  residuals(test_model, type = "response")
+
+####################
+# FIGURE RESIDUALS #
+####################
+
+# plot(fourier_df$week_total, test_resid, pch = 19, cex = 0.4, col = grey(0.6),
+#   main = "Residuals over time", ylab = "Residuals (observed-fitted)", xlab = "Date")
+# abline(h = 0, lty = 2, lwd = 2)
+
+fourier_df %>% 
+  ggplot(aes(x = week_total,
+             y = test_resid)) +
+  geom_point() +
+
+  labs(title = "Residuals - Area 25",
+       x = "Date",
+       y = "Residuals over time") +
+  theme_light()
+
+###############################
+# FIGURES: DEVIANCE VARIABLES #
+###############################
+
+# plot(fourier_df$week_total, fourier_df$p_deviation, pch = 19, cex = 0.4, col = grey(0.6),
+#   main = "Weekly Precipitation Deviance from Long-Term Mean", ylab = "Deviance (mm)", xlab = "Date")
+# abline(h = 0,lty = 2, lwd = 2)
+
+fourier_df %>% 
+  ggplot(aes(x = week_total,
+             y = p_deviation)) +
+  geom_point() +
+  labs(title = "Weekly Precipitation Deviance from Long-Term Mean - Area 25",
+       x = "Date",
+       y = "Deviance (mm)") +
+  theme_light() +
+  theme(legend.position = 'none')
+
+# plot(fourier_df$week_total, fourier_df$tmax_deviation, pch = 19, cex = 0.4, col = grey(0.6),
+#   main = "Weekly Max Temp Deviance from Long-Term Mean", ylab = "Deviance (degC)", xlab = "Date")
+# abline(h = 0, lty = 2, lwd = 2)
+
+fourier_df %>% 
+  ggplot(aes(x = week_total,
+             y = tmax_deviation)) +
+  geom_point() +
+  labs(title = "Weekly Max. Temperature Deviance from Long-Term Mean - Area 25",
+       x = "Date",
+       y = "Deviance (degC)") +
+  theme_light() +
+  theme(legend.position = 'none')
+
+################################
+# FIGURE: DEVIANCE VS. WASTING #
+################################
+
+# plot(fourier_df$p_deviation, fourier_df$wasting_total/fourier_df$offset, pch = 19, cex = 0.4, col = grey(0.6),
+#   main = "Precipitaion Deviation vs. Wasting Rate", ylab = "Wasting (%)", xlab = "Deviance (mm)")
+# abline(h = 0,lty = 2, lwd = 2)
+
+fourier_df %>% 
+  ggplot(aes(x = p_deviation_positive,
+             y = wasting_total/offset)) +
+  geom_point() +
+  labs(title = "Positive precipitation deviation vs. wasting rate - Area 25",
+       x = "Positive deviance (mm)",
+       y = "Wasting (%)") +
+  theme_light() +
+  theme(legend.position = 'none')
+
+fourier_df %>% 
+  ggplot(aes(x = p_deviation_negative,
+             y = wasting_total/offset)) +
+  geom_point() +
+  labs(title = "Negative precipitation deviation vs. wasting rate - Area 25",
+       x = "Negative deviance (mm)",
+       y = "Wasting (%)") +
+  theme_light() +
+  theme(legend.position = 'none')
+
+# plot(fourier_df$tmax_deviation, fourier_df$wasting_total/fourier_df$offset, pch = 19, cex = 0.4, col = grey(0.6),
+#   main = "Max T Deviation vs. Wasting Rate", ylab = "Wasting (%)", xlab = "Deviance (degC)")
+# abline(h = 0,lty = 2, lwd = 2)
+
+fourier_df %>% 
+  ggplot(aes(x = tmax_deviation_positive,
+             y = wasting_total/offset)) +
+  geom_point() +
+  labs(title = "Positive tmax deviation vs. Wasting Rate - Area 25",
+       x = "Deviance (degC)",
+       y = "Wasting (%)") +
+  theme_light() +
+  theme(legend.position = 'none')
+
+fourier_df %>% 
+  ggplot(aes(x = tmax_deviation_negative,
+             y = wasting_total/offset)) +
+  geom_point() +
+  labs(title = "Negative tmax deviation vs. Wasting Rate - Area 25",
+       x = "Deviance (degC)",
+       y = "Wasting (%)") +
+  theme_light() +
+  theme(legend.position = 'none')
+
+##########################################################
+# FULL MODEL: WASTING ~ LONG-TERM + FOURIER + DEVIATIONS #
+##########################################################
+
+## JUST FOR AREA 25 - TEST
+full_model_p =    ## separate deviation variables for positive and negative
+  glm(
+    data = fourier_df,
+    wasting_total ~ offset(log(offset)) + week_total + fourier_test + p_deviation_positive + p_deviation_negative, 
+    family = "poisson",
+    maxit = 100
+  ) %>% 
+  broom::tidy()
+
+## JUST FOR AREA 25 - TEST
+full_model_tmax =
+  glm(
+    data = fourier_df,
+    wasting_total ~ offset(log(offset)) + week_total + fourier_test + tmax_deviation_positive + tmax_deviation_negative,
+    family = "poisson",
+    maxit = 100
+  ) %>% 
+  broom::tidy()
+
+```
+
+```{r map_model_crude}
+
+## take steps from above, create function
+## map over areas 1-22
+## create dataframe of coefficient estimates for all 22 areas
+
+
+# CREATING FUNCTION - CRUDE (two separate models, one for tmax and one for precip)
+
+crude_model_fn = function(x) {
+  
+  # area-specific dataframe
+  data_ts = 
+    nsp_enacts_ts %>% 
+    ungroup() %>% 
+    filter(surv_area == x) %>% # need to make sure weekly sample big enough? - revisit this (e.g. offset > 30)
+    arrange(week_total)
+  
+  # fourier function
+  fourier =
+    harmonic(data_ts$week_total, nfreq = 4, period = 52)
+
+  fourier_model = 
+    glm(
+      data = data_ts,
+      wasting_total ~ offset(log(offset)) + fourier + week_total,
+      family = "poisson",
+      maxit = 100
+    )
+
+  # compute predicted wasting count from model (*** need to divide predicted values by offset in plots etc! ***)
+  fourier_predict = 
+    predict(fourier_model, type = "response")
+
+  # compute residuals
+  fourier_resid = 
+    residuals(fourier_model, type = "response")
+  
+  ## FULL MODELS
+  full_model_p =
+  glm(
+    data = data_ts,
+    wasting_total ~ offset(log(offset)) + week_total + fourier + p_deviation_positive + p_deviation_negative,
+    family = "poisson",
+    maxit = 100
+  ) %>% 
+    broom::tidy()
+
+  full_model_tmax =
+    glm(
+      data = data_ts,
+      wasting_total ~ offset(log(offset)) + week_total + fourier + tmax_deviation_positive + tmax_deviation_negative,
+      family = "poisson",
+      maxit = 100
+    ) %>% 
+    broom::tidy()
+  
+  # output
+  rbind(full_model_p, full_model_tmax)
+
+}
+
+# MAPPING FUNCTION ACROSS SURVEY AREAS
+
+test_map = map(4:25, crude_model_fn)
+
+crude_results =
+  test_map %>% 
+  bind_rows() %>% 
+  filter(term %in% c('p_deviation_positive', 'p_deviation_negative', 'tmax_deviation_positive', 'tmax_deviation_negative')) %>% 
+  view()
+
+## Bonferroni LOS = 0.05/11 = 0.004545
+
+```
+
+```{r map_model_adj}
+
+## take steps from above, create function
+## map over areas 1-22
+## create dataframe of coefficient estimates for all 22 areas
+
+
+# CREATING FUNCTION - CRUDE (two separate models, one for tmax and one for precip)
+
+adj_model_fn = function(x) {
+  
+  # area-specific dataframe
+  data_ts = 
+    nsp_enacts_ts %>% 
+    ungroup() %>% 
+    filter(surv_area == x) %>% # need to make sure weekly sample big enough? - revisit this (e.g. offset > 30)
+    filter(week_total > 400) %>%  # data split by area at this point in time
+    arrange(week_total)
+  
+  # fourier function
+  fourier =
+    harmonic(data_ts$week_total, nfreq = 4, period = 52)
+
+  fourier_model = 
+    glm(
+      data = data_ts,
+      wasting_total ~ offset(log(offset)) + fourier + week_total,
+      family = "poisson",
+      maxit = 100
+    )
+
+  # compute predicted wasting count from model (*** need to divide predicted values by offset in plots etc! ***)
+  fourier_predict = 
+    predict(fourier_model, type = "response")
+
+  # compute residuals
+  fourier_resid = 
+    residuals(fourier_model, type = "response")
+  
+  ## FULL MODEL - adjusted for both p and tmax
+  full_model_both =
+  glm(
+    data = data_ts,
+    wasting_total ~ offset(log(offset)) + week_total + fourier + 
+      p_deviation_positive + p_deviation_negative +
+      tmax_deviation_positive + tmax_deviation_negative,
+    family = "poisson",
+    maxit = 100
+  ) %>% 
+    broom::tidy()
+
+}
+
+# MAPPING FUNCTION ACROSS SURVEY AREAS
+
+test_map_adj = map(4:25, adj_model_fn)
+
+adj_results =
+  test_map_adj %>% 
+  bind_rows(.id = 'id') %>% 
+  mutate(
+    id = as.numeric(id),
+    id = id + 3,
+    area = id
+  ) %>% 
+  select(area, everything(), -id) %>% 
+  filter(term %in% c('p_deviation_positive', 'p_deviation_negative', 'tmax_deviation_positive', 'tmax_deviation_negative'))
+
+## Bonferonni LOS = 0.05/13 = 0.003846
+
+## look at Areas 24 and 25 - only significant results
+```
+
+To do:
+
+  * Check above models
+    * Is Fourier for each area timeseries as expected?
+    * Do the very few significant findings mean anything, or are they just by chance?
+    * What do the results signify if non-significant? 
+      * "Weekly anomalies in max. temperature and precipitation do not predict weekly anomalies in wasting."
+  * Consider any sort of lag - i.e. extreme week will cause effects on wasting during following week(s)?
+  * Consider month instead of week
+  
+  * Non-geographically disaggregated analysis
+    * Look at week-wise effects across different lag times (1-6 weeks)
+      * Create map() function to look at different lags
+      
+  * Non-geographically disaggregated analysis with different exposure?
+    * Exposures:
+      * Mean positive anomaly over past 30 days (tmax + precip)
+      * Mean negative anomaly over past 30 days (tmax + precip)
+    * Outcome:
+      * Day-level rate of wasting (Poisson dist.) with offset (# surveyed on day)
+
+```{r non_disaggregated}
+
+## NON DISAGGREGATED MODEL (WEEKLY) - across all areas
+
+## after data split around week 394 (areas switched)
+nsp_enacts_ts_post =
+  nsp_enacts_ts %>% 
+  filter(week_total > 394)    ## this is where the break in surveys seems to be - when areas were matched
+
+## fourier function for data series to control for seasonality
+fourier_all =
+  harmonic(nsp_enacts_ts_post$week_total, nfreq = 2, period = 52)
+
+## prediction model with just fourier and long-term trend - to get predicted + residuals
+non_disag_model_predict = 
+  glm(
+    data = nsp_enacts_ts_post,
+    wasting_total ~ offset(log(offset)) + fourier_all + week_total,
+    family = "poisson"
+  )
+
+## predicted values
+non_disag_predict = 
+  predict(non_disag_model_predict, type = "response")
+
+## plotting predicted using fourier function
+nsp_enacts_ts_post %>% 
+  ggplot(aes(x = week_total,
+             y = wasting_total/offset)) +
+  geom_point() +
+  geom_line(aes(x = week_total,
+                y = non_disag_predict/offset,
+                color = 'red'),
+            size = 1) +
+  labs(title = "Sine-cosine functions (Fourier terms) - all areas (after week ~400)",
+       x = "Date",
+       y = "Weekly proportion of wasting") +
+  theme_light() +
+  theme(legend.position = 'none')
+
+## residuals from data controlling for fourier + long-term trend
+non_disag_resid = 
+  residuals(non_disag_model_predict, type = "response")
+
+## plotting residuals
+nsp_enacts_ts_post %>% 
+  ggplot(aes(x = week_total,
+             y = non_disag_resid)) +
+  geom_point() +
+
+  labs(title = "Residuals - all areas (after week ~400)",
+       x = "Date",
+       y = "Residuals over time") +
+  theme_light()
+
+## Poisson regression model including all predictors
+non_disag_model =
+  glm(
+    data = nsp_enacts_ts_post,
+    wasting_total ~ offset(log(offset)) + week_total + fourier_all + 
+      p_deviation_positive + p_deviation_negative +
+      tmax_deviation_positive + tmax_deviation_negative + surv_area,
+    family = "poisson"
+  ) %>% 
+    broom::tidy()
+
+```
+
+```{r lag}
+
+## EXPLORATORY LAG ANALYSIS - example code
+
+nsp_enacts_ts_post_lag =
+  nsp_enacts_ts_post %>% 
+  group_by(surv_area) %>% 
+  mutate(
+    p_deviation_positive_lag = lag(p_deviation_positive),
+    p_deviation_negative_lag = lag(p_deviation_negative),
+    tmax_deviation_positive_lag = lag(tmax_deviation_positive),
+    tmax_deviation_negative_lag = lag(tmax_deviation_negative)
+  )
+
+non_disag_lag_model =
+  glm(
+    data = nsp_enacts_ts_post_lag,
+    wasting_total ~ offset(log(offset)) + week_total + fourier_all + 
+      p_deviation_positive_lag + p_deviation_negative_lag +
+      tmax_deviation_positive_lag + tmax_deviation_negative_lag + surv_area, ## need to include surv_area as potential confounder
+    family = "poisson"
+  ) %>% 
+    broom::tidy()
+
+```
+
+Potential relationship demonstrated between positive/negative anomalies and wasting rate, controlling for:
+  * Week total (long-term linear wasting trend)
+  * Seasonal wasting trend (4 sine-cosine pairs with period of 1 year)
+  * Survey area (3-25, categorical)
+  * Positive/negative precipitation anomalies

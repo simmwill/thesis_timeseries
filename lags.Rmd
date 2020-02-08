@@ -1,0 +1,547 @@
+---
+title: "Lags in log-bin models"
+author: "Will Simmons"
+date: "2/7/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+NOTE: NEED TO REDO LAG ANALYSES WITH FULL ENACTS DATASET (i.e. have data on all lags since only NSP data are incomplete - not ENACTS!)
+
+# Overview
+
+Purpose of these analyses:
+
+  * Investigate what lag periods, if any, reveal significant associations between anomalously high temperatures and rate of wasting
+  * For these lags, conduct future analyses taking lags into account
+    + Conditional (Quasi-) Poisson a la Armstrong et al 2014 (BMC Med Res Methodol)?
+    + Distributed Lag Nonlinear Models?
+    
+# Investigating lags
+
+## Setup + data import
+
+First, I'll set up our libraries and data. Climate and nutrition data come from the Bangladesh Nutrition Surveillance Project (NSP) and the Enhancing National Climate Services (ENACTS) initiative.
+
+In the `nsp_enacts` dataset, climate and nutrition data have been matched by (1) geographic survey area (22 areas total) and (2) calendar date (ranging from 1990-Jun-02 to 2006-Nov-03).
+
+```{r data}
+
+library(tidyverse)
+library(readxl)
+library(knitr)
+library(kableExtra)
+library(logbin)
+library(tsModel)
+
+## reading in data
+enacts = readRDS(file = './data/enacts')
+nsp_enacts = readRDS(file = './data/nsp_enacts')
+
+## disabling scientific notation
+options(scipen = 999)
+```
+
+## Creating temperature anomaly variables
+
+Next, I'll create a variable in the dataset that indicates the extent of anomalous temperature from the survey area's long-term mean for a given (1) day, (2) week, and (3) month (3 separate variables). 
+
+For now, I'll only focus on *positive* anomalies for *temperature*. Later, I might also consider positive vs. negative anomalies, and anomalies in temperature vs. precipitation.
+
+```{r anomaly}
+
+# workflow
+  # number days 1-365, weeks 1-52, months 1-12
+    # exclude leap days for simplicity
+    # week 53 = week 52 (week 52 of each year will include extra day)
+  # anomalies
+    # group by area
+    # day:
+      # group by day of year
+      # summarize to find average
+      # ungroup
+    # week and month similar to above, but create week-within-year and month-within-year means to compare to across-year means
+    # ungroup by area
+    # all observations should have day, week, and month averages specific to area
+
+## duplicating dataset
+data = enacts
+
+## formatting day/week/month data
+anomalies =
+  data %>% 
+  mutate(
+    surv_area = as.character(surv_area),    ## keeps from coverting first category (area 4) into numeric 1 (since factor = 1)
+    surv_area = as.numeric(surv_area)
+  ) %>% 
+  ungroup() %>%                    ## data were grouped by `date`
+  filter(                          ## excluding leap days for simplicity (can figure out later) - 88 area-days
+    !(lubridate::day(date) == 29 &
+    lubridate::month(date) == 02)
+  ) %>% 
+  mutate(
+    doy = lubridate::yday(date),    ## day of year
+    doy = as.numeric(doy),
+    woy = lubridate::week(date),    ## week of year   
+    woy = as.numeric(woy),
+    moy = lubridate::month(date),   ## month of year
+    moy = as.numeric(moy),
+    woy = case_when(woy == 53 ~ 52, ## folding 1 day of 53rd week as 8th day of 52nd week for simplicity
+                    TRUE ~ woy),
+    year = lubridate::year(date)
+  ) %>% 
+  
+## creating anomaly variables
+
+  ## day avg
+  group_by(surv_area, doy) %>% 
+  mutate(
+    day_avg_tmax = mean(tmax),                         ## day-of-year avg for each area
+    day_pos_t_anomaly = tmax - day_avg_tmax,           ## anomaly for each area
+    day_pos_t_anomaly = case_when(                     ## excluding anomalous values less than 0
+      day_pos_t_anomaly < 0 ~ 0,
+      TRUE ~ day_pos_t_anomaly
+    )
+  ) %>% 
+  ungroup() %>%
+  
+  ## week-within-year avg
+  group_by(surv_area, year, woy) %>%                  ## grouping by area, year, and week
+  mutate(
+    wkyr_avg_tmax = mean(tmax)                        ## avg tmax for week-within-year
+  ) %>% 
+  ungroup() %>% 
+  
+  ## week-across-years avg and anomaly
+  group_by(surv_area, woy) %>%                        ## grouping by area and week (1-52)
+  mutate(
+    wk_avg_tmax = mean(tmax),                         ## avg tmax for week-across-years
+    wk_pos_t_anomaly = 
+      wkyr_avg_tmax - wk_avg_tmax,                    ## anomaly for each area (how far is week-within-year from week-across-years)
+    wk_pos_t_anomaly = case_when(                     ## excluding anomalous values less than 0
+      wk_pos_t_anomaly < 0 ~ 0,
+      TRUE ~ wk_pos_t_anomaly
+    )
+  ) %>% 
+  ungroup() %>% 
+  
+  ## month-within-year avg
+  group_by(surv_area, year, moy) %>%                  ## grouping by area, year, and month
+  mutate(
+    moyr_avg_tmax = mean(tmax)
+  ) %>% 
+  ungroup() %>% 
+  
+  ## month-across-years avg and anomaly
+  group_by(surv_area, moy) %>%                        ## grouping by area and month
+  mutate(
+    mo_avg_tmax = mean(tmax),
+    mo_pos_t_anomaly = 
+      moyr_avg_tmax - mo_avg_tmax,                    ## anomaly for each area (how far is mo-within-year from mo-across-years)
+    mo_pos_t_anomaly = case_when(                     ## excluding anomalous values less than 0
+      mo_pos_t_anomaly < 0 ~ 0,
+      TRUE ~ mo_pos_t_anomaly
+    )
+  ) %>% 
+  ungroup()
+
+```
+
+I excluded 88 climate area-day observations that occurred on leap days for simplicity's sake, resulting in a new dataframe `anomalies` with a rowcount of `r nrow(anomalies)`.
+
+A bit confusing, but here's what we have, all specific to a respective geographic area:
+
+  * `tmax`: day-within-year maximum temperature
+  * `day_avg_tmax`: longterm day-across-years mean `tmax`
+  * `day_pos_t_anomaly`: how far is `tmax` on a given day from the longterm mean `tmax` across years on that day of year (1-365)?
+  
+  * `wkyr_avg_tmax`: week-within-year mean `tmax`
+  * `wk_avg_tmax`: longterm week-across-years mean `tmax`
+  * `wk_pos_t_anomaly`: how far is mean `tmax` across a given week from the longterm mean across years for that week of the year (1-52)?
+  
+  * `moyr_avg_tmax`: month-within-year mean `tmax`
+  * `mo_avg_tmax`: longterm month-across-years mean `tmax` 
+  * `mo_pos_t_anomaly`: how far is mean `tmax` across a given month from the longerm mean across years for that month of the year (1-12)?
+  
+  * NOTE: all anomaly variables are positive anomalies only (i.e. anomalies below 0 have been recoded as 0)
+
+## Creating lags within ENACTS dataset
+
+Since we have a consistent timeseries within our ENACTS data, we'll create our lagged variables here to save us the trouble of working in a table that also includes inconsistently timed NSP data. We'll join to NSP data in the next step.
+
+```{r lag_data}
+
+## week-level only first - using woy (PROBLEM - non-cyclic date structure, so last week of Dec isn't lagged as first of next Jan) ####
+
+# anomalies_lag =
+#   anomalies %>% 
+#   select(                  ## extract week-level data
+#     surv_area,
+#     woy,
+#     year,
+#     wkyr_avg_tmax,
+#     wk_avg_tmax,
+#     wk_pos_t_anomaly
+#   ) %>% 
+#   distinct() %>%              ## make only week-level by calling distinct() --> merges like rows
+#   group_by(
+#     surv_area,
+#     year,
+#     woy) %>% 
+#   arrange(surv_area) %>% 
+#   group_by(
+#     surv_area,
+#     year
+#   ) %>% 
+#   mutate(                                                           ## creating lags within weekly ENACTS dataset
+#     lag1 = lag(wk_pos_t_anomaly, 1, order_by = woy),
+#     lag2 = lag(wk_pos_t_anomaly, 2, order_by = woy),
+#     lag3 = lag(wk_pos_t_anomaly, 3, order_by = woy),
+#     lag4 = lag(wk_pos_t_anomaly, 4, order_by = woy),
+#     lag5 = lag(wk_pos_t_anomaly, 5, order_by = woy),
+#     lag6 = lag(wk_pos_t_anomaly, 6, order_by = woy),
+#     lag7 = lag(wk_pos_t_anomaly, 7, order_by = woy),
+#     lag8 = lag(wk_pos_t_anomaly, 8, order_by = woy)
+#   )
+
+
+
+# trying yearweek format to make dates cyclic - e.g. lag 1 for Wk 1 Jan 1999 will be value from last wk of Dec 1998 ###############
+
+## ** wonky with how I've set up no leap days / 52 wks **
+
+# anomalies_lag2 =
+#   anomalies %>% 
+#   mutate(
+#     woy2 = tsibble::yearweek(date)
+#   ) %>% 
+#   select(                  ## extract week-level data
+#     surv_area,
+#     woy2,
+#     # woy,
+#     # year,
+#     wkyr_avg_tmax,
+#     wk_avg_tmax,
+#     wk_pos_t_anomaly
+#   ) %>% 
+#   distinct() %>%              ## make only week-level by calling distinct() --> merges like rows
+#   arrange(
+#     surv_area
+#   ) %>% 
+#   group_by(
+#     surv_area
+#     # year,
+#     # woy
+#   ) %>% 
+#   mutate(                                                           ## creating lags within weekly ENACTS dataset
+#     lag1 = lag(wk_pos_t_anomaly, 1, order_by = woy2),
+#     lag2 = lag(wk_pos_t_anomaly, 2, order_by = woy2),
+#     lag3 = lag(wk_pos_t_anomaly, 3, order_by = woy2),
+#     lag4 = lag(wk_pos_t_anomaly, 4, order_by = woy2),
+#     lag5 = lag(wk_pos_t_anomaly, 5, order_by = woy2),
+#     lag6 = lag(wk_pos_t_anomaly, 6, order_by = woy2),
+#     lag7 = lag(wk_pos_t_anomaly, 7, order_by = woy2),
+#     lag8 = lag(wk_pos_t_anomaly, 8, order_by = woy2)
+#   )
+
+
+
+
+# trying weektotal variable constructed from woy + 52*(1990 - year) ############
+
+anomalies_lag3 =
+  anomalies %>%
+  mutate(
+    woy3 = woy + 52*(year - 1990)
+  ) %>%
+  select(                  ## extract week-level data
+    surv_area,
+    woy3,
+    woy,
+    year,
+    wkyr_avg_tmax,
+    wk_avg_tmax,
+    wk_pos_t_anomaly
+  ) %>%
+  distinct() %>%              ## make only week-level by calling distinct() --> merges like rows
+  arrange(
+    surv_area
+  ) %>%
+  group_by(
+    surv_area
+    # year,
+    # woy
+  ) %>%
+  mutate(                                                           ## creating lags within weekly ENACTS dataset
+    lag1 = lag(wk_pos_t_anomaly, 1, order_by = woy3),
+    lag2 = lag(wk_pos_t_anomaly, 2, order_by = woy3),
+    lag3 = lag(wk_pos_t_anomaly, 3, order_by = woy3),
+    lag4 = lag(wk_pos_t_anomaly, 4, order_by = woy3),
+    lag5 = lag(wk_pos_t_anomaly, 5, order_by = woy3),
+    lag6 = lag(wk_pos_t_anomaly, 6, order_by = woy3),
+    lag7 = lag(wk_pos_t_anomaly, 7, order_by = woy3),
+    lag8 = lag(wk_pos_t_anomaly, 8, order_by = woy3)
+  )
+
+## I think this worked! anomalies_lag3
+
+```
+
+
+## Join with NSP data
+
+Since I was just working with ENACTS data above (full climate data), I'll now join with NSP data (nutrition data).
+
+```{r NSP_join}
+
+nsp_anomalies_wk_lag =
+  nsp_enacts %>% 
+  filter(                          ## excluding leap days for simplicity (can figure out later) - 88 area-days
+  !(lubridate::day(dov) == 29 &
+  lubridate::month(dov) == 02)
+) %>% 
+  mutate(
+    doy = lubridate::yday(dov),    ## day of year
+    doy = as.numeric(doy),
+    woy = lubridate::week(dov),    ## week of year   
+    woy = as.numeric(woy),
+    moy = lubridate::month(dov),   ## month of year
+    moy = as.numeric(moy),
+    woy = case_when(woy == 53 ~ 52, ## folding 1 day of 53rd week as 8th day of 52nd week for simplicity
+                    TRUE ~ woy),
+    year = lubridate::year(dov),
+    woy3 = woy + 52*(year - 1990)
+  ) %>% 
+  mutate(
+    surv_area = as.numeric(surv_area),
+    ) %>%      ## to match formats to join
+  select(-precip, -tmax, -tmin, -area_name, date = dov,
+         -woy, -year) %>% 
+  full_join(
+    .,
+    anomalies_lag3,
+    by = c('surv_area', 'woy3')
+  ) %>% 
+  
+  arrange(
+    surv_area,
+    date
+  ) %>% 
+  
+  ## creating wasting variable
+  mutate(
+  wasting = case_when(
+    zwfl < -2 ~ '1',
+    zwfl >= -2 ~ '0',
+    TRUE ~ ""
+  ),
+  wasting = as.logical(as.numeric(wasting))
+) %>% 
+  
+  select(date, surv_area, ageindays, zwfl, wasting, everything())      ## reordering + removing area_name (add back)
+
+## check to make sure lags worked!
+
+```
+
+## Crude log-binomial models with lags
+
+Now, I'll construct log-binomial models to calculate prevalence ratios (PRs) at differing lags and plot the results.
+
+Non-lagged crude models:
+
+```{r crude_models}
+
+## crude log-binomial model: daily positive tmax anomaly
+logbin_crude_t_pos_day =
+  logbin(
+    data = nsp_anomalies_wk_lag,
+    formula = wasting ~ day_pos_t_anomaly,
+    method = 'em',
+    accelerate = 'squarem' # these two options speed the convergence
+  )
+
+logbin_crude_t_pos_day %>% 
+  broom::tidy()
+
+## crude model: weekly positive tmax anomaly
+logbin_crude_t_pos_wk =
+  logbin(
+    data = nsp_anomalies_wk_lag,
+    formula = wasting ~ lag8,
+    method = 'em',
+    accelerate = 'squarem' # these two options speed the convergence
+  )
+
+logbin_crude_t_pos_wk %>% 
+  broom::tidy()
+
+# ## crude model: monthly positive tmax anomaly
+# logbin_crude_t_pos_mo =
+#   logbin(
+#     data = nsp_anomalies,
+#     formula = wasting ~ mo_pos_t_anomaly,
+#     method = 'em',
+#     accelerate = 'squarem' # these two options speed the convergence
+#   )
+# 
+# logbin_crude_t_pos_mo %>% 
+#   broom::tidy()
+
+```
+
+Lagged crude models for weekly anomalies (lags at 0 to 8 weeks):
+
+```{r crude_lagged}
+############
+## create table with every combination of surv_area, year, woy
+area =
+  tibble(
+    surv_area = 4:25,
+    k = 1
+  )
+
+yr = 
+  tibble(
+    year = 1990:2006,
+    k = 1
+  )
+
+wk =
+  tibble(
+    woy = 1:52,
+    k = 1
+  )
+
+## table with all combinations
+area_yr_wk =
+  full_join(
+    area,
+    yr,
+    by = 'k'
+  ) %>% 
+  full_join(
+    .,
+    wk,
+    by = 'k'
+  ) %>% 
+  select(-k)
+
+## create week-level df to join with blank table able, compute grouped dplyr::lag() (can't lag within groups in `anomalies` df)
+anomalies_distinct =  
+  anomalies %>% 
+  select(
+    surv_area,
+    year,
+    woy,
+    wkyr_avg_tmax,
+    wk_avg_tmax,
+    wk_pos_t_anomaly
+  ) %>%
+  group_by(
+    surv_area,
+    year,
+    woy
+  ) %>% 
+  distinct()
+
+## full join with existing dataframe
+lag_df =
+  full_join(
+    area_yr_wk,
+    anomalies_distinct,
+    by = c('surv_area', 'year', 'woy')
+  ) %>% 
+
+## compute lagged values for eligible weeks
+  group_by(surv_area, year) %>% 
+  mutate(
+    anom_lag1 = lag(wk_pos_t_anomaly, 1, order_by = woy)
+  )
+
+## LEFT join this back with anomalies to only keep values in anomalies
+anomalies_week =
+  anomalies %>% 
+  left_join(
+    .,
+    lag_df,
+    by = c('surv_area', 'year', 'woy', 'wkyr_avg_tmax', 'wk_avg_tmax', 'wk_pos_t_anomaly')
+  ) %>% 
+  drop_na() # silly anomalies work - forgot that I had consistent timeseries from ENACTS data
+
+#########
+```
+
+There are `r nrows(anomalies_week)` observations with a prior week from which a 1-lagged weekly tmax anomaly can be calculated. Let's write a function that creates a DF with lags 0 through 8 now.
+
+```{r lag_function}
+
+## copied and pasted - figure out a better solution later
+
+lag_df =
+  nsp_anomalies %>% 
+  group_by(
+    surv_area,
+    year
+  ) %>% 
+  # mutate(                                                            creating lag within weekly ENACTS dataset
+  #   lag1 = lag(wk_pos_t_anomaly, 1, order_by = woy),
+  #   lag2 = lag(wk_pos_t_anomaly, 2, order_by = woy),
+  #   lag3 = lag(wk_pos_t_anomaly, 3, order_by = woy),
+  #   lag4 = lag(wk_pos_t_anomaly, 4, order_by = woy),
+  #   lag5 = lag(wk_pos_t_anomaly, 5, order_by = woy),
+  #   lag6 = lag(wk_pos_t_anomaly, 6, order_by = woy),
+  #   lag7 = lag(wk_pos_t_anomaly, 7, order_by = woy),
+  #   lag8 = lag(wk_pos_t_anomaly, 8, order_by = woy)
+  # )
+
+########################## *************** NEED TO REDO WITH FULL ENACTS DATASET *************** ##########################
+
+# new_lag_df = data.frame()
+# 
+# for (i in 1:9) {
+# 
+#   lag[[i]] =
+#     lag_df %>%
+#     mutate(
+#       lag = lag(wk_pos_t_anomaly, i - 1, order_by = woy)
+#     )
+# 
+#   new_lag_df[[i]] = lag
+# 
+#   lag_df[[ncol(lag_df) + 1]] =
+#     mutate(
+#       sprintf("lag%i", i - 1) = lag(wk_pos_t_anomaly, (i - 1), order_by = woy)
+#       # anom_lag1 = lag(wk_pos_t_anomaly, (i - 1), order_by = woy)
+#     )
+# 
+# }
+# 
+# new_lag_df %>%
+#   bind_cols() %>% view()
+
+```
+
+
+```{r crude_lagged1}
+
+full_lag_df =
+  left_join(anomalies_week, lag_df)
+
+lagged_logbin_crude =
+  logbin(
+    data = anomalies_week,
+    formula = wasting ~ anom_lag1,
+    method = 'em',
+    accelerate = 'squarem' # these two options speed the convergence
+  )
+
+lagged_logbin_crude %>% 
+  broom::tidy()
+
+```
+
+## Adjusted log-binomial models with lags
+
+READ NOTE AT TOP - NEED TO REDO WITH FULL ENACTS DATASET

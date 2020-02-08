@@ -22,6 +22,7 @@ malnutrition: Bangladesh, 1990-2006
             models*](#between-year-seasonal-models)
       - [Conclusion](#conclusion)
       - [References](#references)
+  - [**To Do**](#to-do)
 
  
 
@@ -356,3 +357,26 @@ nutrition-sensitive climate adaptations and interventions in Bangladesh.
     Cholera in Bangladesh: climatic components of seasonal variation.
     Epidemiology. 2010 Sep;21(5):706-10.
     <https://doi.org/10.1097/EDE.0b013e3181e5b053>.
+
+# **To Do**
+
+0.  Resources
+    
+      - People
+          - Andrew Rundle
+          - Pam Factor-Litvak
+      - Research
+      - *Sick individuals and sick populations* (Rose, 1985) - shifts in
+        seasonal curves from year to year \~= shifting population curve
+        over time
+
+1.  What are the problems that we want to address?
+    
+      - What are the associated causal questions, considering a
+        counterfactual framework?
+      - What are the relationship(s) that comprise these questions
+        \[exposure(s) and outcome(s)\]?
+      - What are the alternative explanations for the relationship(s)
+        \[confounders in our DAGs\]?
+
+2.

@@ -1,0 +1,439 @@
+---
+title: "Preliminary Extreme Climate Analyses"
+output: 
+  html_document:
+    code_folding: hide
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r setup}
+library(tidyverse)
+library(readxl)
+library(knitr)
+library(kableExtra)
+library(patchwork)
+
+nsp_enacts = readRDS(file = './data/nsp_enacts')
+enacts = readRDS(file = './data/enacts')
+options(scipen = 999)
+```
+
+# Recreating practicum presentation analyses
+
+Data for my practicum were constructed in MATLAB, then analyzed in SAS. Here, I'll use R to do both, having already done some of the cleaning in the `data_cleaning.Rmd` file.
+
+## Creating new extreme climate variables
+
+The new variables I created were:
+
+  * Indicator of wasting (WHZ < -2)
+  * Indicator of an extreme heat day (> 95th percentile for entire span of `tmax` data for area)
+  * Indicator of an extreme precipitation day (> 95th percentile for entire span of `precip` data for area)
+  * Moving sum of the number of extreme heat days in the last 30 days
+  * Moving sum of the number of extreme precipitation days in the last 30 days
+
+### Creating wasting indicator and checking against prior analyses  
+```{r wasting}
+# prevalence of wasting in SAS coding:
+  
+  # OVERALL
+  # wasting count   percent 
+  # 0	      665509	85.06
+  # 1	      116855	14.94
+
+  # IN JOINED DATA
+  # wasting = 96033/642922
+
+nsp_enacts_extreme =
+  nsp_enacts %>% 
+  mutate(
+    wasting = case_when(
+      zwfl < -2 ~ '1',
+      zwfl >= -2 ~ '0',
+      TRUE ~ ""
+    ),
+    wasting = as.logical(as.numeric(wasting))
+  )
+
+  # In this joined data, the prevalence is an identical 96033/642922
+
+```
+
+Prevalence of wasting in our joined R data matches SAS code for joined NSP-ENACTS analyses (96033/642922 = 0.1494).
+
+### Creating extreme climate indicator variables
+
+```{r extreme_climate_indicators}
+
+# Calculate 95th percentiles for climate measures and compare to MATLAB - slight differences
+
+climate_95_pctiles =
+  enacts %>% 
+  group_by(surv_area) %>% 
+  summarize(p_95 = quantile(precip, probs = 0.95),
+            t_95 = quantile(tmax, probs = 0.95)) %>% 
+  arrange(surv_area) %>% 
+  mutate(matlab_p_95 = c(28.8403333333332,
+                         34.2624999999998,
+                         27.6666666666667,
+                         29.4000000000000,
+                         29.5874999999999,
+                         29.6666666666667,
+                         39.1534722222222,
+                         61.3874999999998,
+                         25.2183333333333,
+                         34.2504166666667,
+                         25.7525000000000,
+                         23.4197916666666,
+                         38.1343055555555,
+                         44.4683333333333,
+                         28.2666666666667,
+                         38.1708333333333,
+                         29.1715277777777,
+                         45.6980555555555,
+                         34.6739583333332,
+                         35.5874999999999,
+                         42.4283333333333,
+                         25.2794784580499),
+         matlab_t_95 = c(35.9997260595957,
+                         34.5896162509918,
+                         36.0382632748286,
+                         35.1534521261851,
+                         35.3788045088450,
+                         35.8968192736308,
+                         34.9988991260529,
+                         34.5670912861824,
+                         36.6704298885663,
+                         35.0168213089307,
+                         37.2606635157267,
+                         37.6274459489187,
+                         34.4341907999251,
+                         35.2279482714335,
+                         34.8488587061564,
+                         34.6624516963959,
+                         34.9559395869573,
+                         34.8628256882562,
+                         34.7753502329191,
+                         34.7992955048879,
+                         33.4850381135940,
+                         35.4682427088420),
+         p_diff = p_95 - matlab_p_95,
+         t_diff = t_95 - matlab_t_95
+)
+
+# making table of differences
+
+climate_95_pctiles %>% 
+  select(surv_area, p_diff, t_diff) %>% 
+  kable(caption = "Differences between MATLAB and R percentile calculations for same data",
+        col.names = c("Survey Area", "Precipitation Difference", "Temperature Difference")
+  ) %>% 
+  kable_styling(bootstrap_options = "striped", full_width = F, position = "left")
+
+```
+
+As we can see in the table above, MATLAB and R calculate percentiles a bit differently. This will lead to a slight difference in our 95th percentile cutoff values for our climate data, but the maximum percentile difference between the two methods is `r climate_95_pctiles %>% summarize(max(abs(p_diff)))` mm precipitation and `r climate_95_pctiles %>% summarize(max(abs(t_diff)))` degrees C maximum temperature.
+
+```{r}
+# create indicator variable for each area/climate measure
+
+## did this with nsp_enacts_extreme at first, then realized I needed to do with enacts dataset only - no duplicate dates
+
+# nsp_enacts_extreme =
+#   nsp_enacts_extreme %>% 
+#   left_join(climate_95_pctiles[,1:3]) %>% # joining with first three cols of percentile table to match each row with percentile
+#   mutate(
+#     extr_p = case_when(
+#       precip > p_95 ~ '1',
+#       precip <= p_95 ~ '0',
+#       TRUE ~ ''),
+#     extr_t = case_when(
+#       tmax > t_95 ~ '1',
+#       tmax <= t_95 ~ '0',
+#       TRUE ~ ''),
+#     extr_p = as.logical(as.numeric(extr_p)),
+#     extr_t = as.logical(as.numeric(extr_t))
+#     )
+
+# create moving sum of last 30 days of extreme events in ENACTS dataset, then join with nsp_enacts_extreme
+
+enacts_extreme =
+  readRDS(file = './data/enacts') %>% 
+  arrange(surv_area, date) %>% 
+  left_join(climate_95_pctiles[,1:5]) %>% # joining with first three cols of percentile table to match each row with percentile
+  group_by(surv_area) %>% 
+  mutate(
+    extr_p = case_when(
+      precip > matlab_p_95 ~ '1',
+      precip <= matlab_p_95 ~ '0',
+      TRUE ~ ''),
+    extr_t = case_when(
+      tmax > matlab_t_95 ~ '1',
+      tmax <= matlab_t_95 ~ '0',
+      TRUE ~ ''),
+    extr_p = as.logical(as.numeric(extr_p)),
+    extr_t = as.logical(as.numeric(extr_t)),
+  
+  ## NOTES
+    # p_95 = area-specific precip threshold (95th %ile) across span of data for area
+    # t_95 = area-specific temp threshold (95th %ile) across span of data for area
+    # extr_p = indicator 1/0 of extreme precip by 95th %ile 
+    # extr_t = indicator 1/0 of extreme temp by 95th %ile 
+  
+    p_last_30 = zoo::rollsum(extr_p, 31, fill = NA, align = "right"),
+    t_last_30 = zoo::rollsum(extr_t, 31, fill = NA, align = "right")
+  )
+
+  ## NOTES
+    # p_last_30 = number of extreme precipitation days in last 30 for area (doesn't include first 30 days of each year)
+    # t_last_30 = number of extreme temp days in last 30 for area (doesn't include first 30 days of each year)
+
+# join this with nsp_enacts so each individual has number of days in past 30 they experienced extreme climate
+
+nsp_enacts_extreme =
+  nsp_enacts_extreme %>% 
+  left_join(enacts_extreme, by = c('surv_area', 'dov' = 'date', 'precip', 'tmax', 'tmin'))
+
+## after checking totals and means against MATLAB, temperature running sums are identical, but there's a slight discrepancy with precipitation
+  # Total precipitation days in the last month experienced by sample:
+    # R:      211296
+    # MATLAB: 211327
+  # Temp:
+    # R:      211420
+    # MATLAB: 211420
+## if this discrepancy significantly affects results, revisit, but should be fine since heavy precipitation variable is ever/never
+
+```
+
+
+## Analyses
+
+The analyses I completed for my practicum consisted of two log-binomial regression models:
+
+  * wasting = extreme_t (0 = none, 1 = 1-20 days, 2 = 21+ days of extreme tmax in last 30 days)
+  * wasting = extreme_p_any (yes/no extreme precipitation in last 30 days)
+
+```{r}
+## check p_last_30, t_last_30 against case #s in SAS models (how many in SAS vs. R were exposed to 21+ days of extreme temp, etc?)
+nsp_enacts_extreme =
+  nsp_enacts_extreme %>% 
+  mutate(
+    precip_indicator =
+      case_when(
+        p_last_30 == 0 ~ '0',
+        p_last_30 > 0 ~ '1',
+        TRUE ~ ''
+      ),
+    temp_indicator = 
+      case_when(
+        t_last_30 == 0 ~ '0',
+        t_last_30 %in% (1:20) ~ '1',
+        t_last_30 > 20 ~ '2',
+        TRUE ~ ''
+      ),
+    precip_indicator = as.factor(as.numeric(precip_indicator)),
+    temp_indicator = as.factor(as.numeric(temp_indicator))
+  ) %>% 
+  mutate(
+    month = lubridate::month(dov),
+    month = as.factor(month),
+    year = lubridate::year(dov),
+    year = as.factor(year)
+  ) 
+# %>% 
+  # head(10) %>% view()
+  # group_by(precip_indicator) %>% summarize(n = n()) %>% select(n, precip_indicator) %>% view() # numbers for precip
+  # group_by(temp_indicator) %>% summarize(n = n()) %>% select(n, temp_indicator) %>% view() # numbers for temp
+
+# Extreme heat in last 30 days (sample experiencing out of N = 642922)
+  # 0 days
+    # R: 416328
+    # SAS: 416328
+  # 1-20 days
+    # R: 223375
+    # SAS: 223375
+  # 21+ days
+    # R: 3219
+    # SAS: 3219
+
+# Extreme precip in last 30 days (sample experiencing out of N = 642922)
+  # 0 days
+    # R: 299034
+    # SAS: 299034
+  # Any days
+    # R: 343888
+    # SAS: 343888
+
+### * NOTE: cutoffs were determined by finding categories in which there was homogeneity of effect, but between which there was heterogeneity of effect
+  # Temp: 0 days, 1-20 days, 21+ days
+  # Precip: 0 days, 1+ days
+
+```
+
+```{r analyses}
+library(logbin)
+
+results_precip =
+  logbin(
+    data = nsp_enacts_extreme,
+    formula = wasting ~ precip_indicator,
+    method = 'em',
+    accelerate = 'squarem' # these two options speed the convergence
+  )
+# same results as SAS!
+
+results_temp =
+  logbin(
+    data = nsp_enacts_extreme,
+    formula = wasting ~ temp_indicator,
+    method = 'em',
+    accelerate = 'squarem' # these two options speed the convergence
+  )
+# same results as SAS!
+
+
+## "adjusted" analysis for future publication? --> **need to rethink exposure variables**
+    ## lags (weeks for tmax, ~4 months for precip?)
+        ## model that plots multiple lags
+    ## nature of extreme event - how to make lag variable most interpretable? use anomaly here?
+adj_results = 
+  nsp_enacts_extreme %>% 
+  sample_frac(.5) %>% 
+  logbin(
+    data = .,
+    formula = wasting ~ precip_indicator + temp_indicator
+      + surv_area + month + year,
+    method = 'em',
+    accelerate = 'squarem'
+  )
+
+```
+
+```{r save}
+saveRDS(nsp_enacts_extreme, file = './data/nsp_enacts_extreme')
+```
+
+Creating prevalence bar graphs for Clinical Climate Change poster - Jan 2020
+
+```{r bar graphs for poster}
+
+prevalences = function(df) {   ## function that works on log-bin model output to extract prevalence values for each group
+
+  df %>%                                                  ## function takes a dataframe of results from model
+  broom::tidy() %>% 
+  select(estimate) %>%                                    ## pulls the coef estimates
+  mutate(
+    prev = case_when(                                     ## conditional if-then statement using case_when
+      row_number() == 1 ~ exp(estimate),                  ## for first row (intercept), prevalence is just exp of value
+      row_number() >  1 ~ exp(estimate + estimate[1])     ## for future rows (coefs), prevalence is exp(int + coef)
+    )
+  )
+  
+}
+
+## dataframe for precip bar graph
+prev_prec =                              
+  prevalences(results_precip) %>% 
+  mutate(
+    variable = "Precipitation",
+    category = c("No days", "Any days"),
+    category = as.factor(category),
+    sterr = sqrt((prev * (1 - prev)) / 642922)     ## formula for SE of single proportion
+    # lower = prev - 1.96 * sterr,
+    # upper = prev + 1.96 * sterr
+  ) %>%
+  select(variable, category, everything())
+
+## precip bar graph
+precip_bar =  
+  prev_prec %>% 
+  mutate(
+    category = fct_reorder(category, prev)
+  ) %>%
+  ggplot(aes(x = category, y = prev, fill = category)) +
+  geom_bar(
+    stat = "identity",
+    width = 0.17) +
+  geom_errorbar(
+    aes(
+      x = category,
+      ymin = prev - 1.96 * sterr,
+      ymax = prev + 1.96 * sterr
+    ),
+    color = 'red',
+    size = 0.5,
+    width = 0.1
+  ) +
+  lims(
+    y = c(0, 0.20)
+  ) +
+  scale_fill_brewer() +
+  labs(
+    y = "Wasting prevalence (%)\n",
+    x = "\nDays in previous 30 with extreme precipitation"
+  ) +
+  theme_light() +
+  theme(
+    legend.position = "none",
+    panel.grid.major.x = NULL,
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 16))
+
+## dataframe for temp bar graph
+prev_temp =                              
+  prevalences(results_temp) %>% 
+  mutate(
+    variable = "Temperature",
+    category = c("No days", "1-20 days", "21+ days"),
+    category = as.factor(category),
+    sterr = sqrt((prev * (1 - prev)) / 642922)     ## formula for SE of single proportion
+  ) %>% 
+  select(variable, category, everything())
+
+## temp bar graph
+temp_bar =  
+  prev_temp %>% 
+  mutate(
+    category = fct_reorder(category, prev)
+  ) %>% 
+  ggplot(aes(x = category, y = prev, fill = category)) +
+  geom_bar(
+    stat = "identity",
+    width = 0.25) +
+  geom_errorbar(
+    aes(
+      x = category,
+      ymin = prev - 1.96 * sterr,
+      ymax = prev + 1.96 * sterr
+    ),
+    color = 'blue',
+    size = 0.5,
+    width = 0.15
+  ) +
+  lims(
+    y = c(0, 0.20)
+  ) +
+  scale_fill_brewer(
+    type = "seq",
+    palette = "Oranges"
+  ) +
+  theme_light() +
+  labs(
+    y = "Wasting prevalence (%)\n",
+    x = "\nDays in previous 30 with extreme temperature"
+  ) +
+  theme(legend.position = "none",
+        axis.text = element_text(size = 12),
+        axis.title = element_text(size = 16))
+  
+## final panel bar graph
+final_bar =
+  precip_bar + temp_bar
+
+## for poster figure:
+    ## export > as image
+    ## size: 1500px x 503px
+
+```
+

@@ -86,6 +86,17 @@ plot_zwfl_timeseries = function(area) {
          
 ```
 
+```{r}
+library(ICC)
+
+nsp %>% 
+  ICCesst(surv_area, zwfl, .)
+## ICC = % variance due to between-group variation = 0.0079 (95% CI 0.00485, 0.01528)
+  ## Likely that we could just use GEE instead of mixed models - very small amount of variance between groups (correlation within groups)
+  ## Still want to test random slope model against non-random model, though, with LRT or QIC (see last lecture of AR II)
+```
+
+
 ```{r enacts, echo = FALSE, warning = FALSE, cache = TRUE}
 ## reading and cleaning data
 
@@ -339,3 +350,20 @@ With the above analyses, we hope to address the effects of climate exposures on 
 5. Word Health Organization (2006). WHO Multicentre Growth Reference Study Group. WHO Child Growth Standards: Length/height-for-age, weight-for-age, weight-for-length, weight-for-height and body mass index-for-age: Methods and development. Geneva: World Health Organization. https://www.who.int/childgrowth/standards/Technical_report.pdf?ua=1.
 
 6. Hashizume M, Faruque AS, Wagatsuma Y, Hayashi T, Armstrong B (2010). Cholera in Bangladesh: climatic components of seasonal variation. Epidemiology. 2010 Sep;21(5):706-10. https://doi.org/10.1097/EDE.0b013e3181e5b053.
+
+# **To Do**
+
+  0. Resources
+      + People
+          + Andrew Rundle
+          + Pam Factor-Litvak
+      + Research
+      + _Sick individuals and sick populations_ (Rose, 1985) - shifts in seasonal curves from year to year ~= shifting population curve over time
+      
+  1. What are the problems that we want to address?
+      + What are the associated causal questions, considering a counterfactual framework?
+      + What are the relationship(s) that comprise these questions [exposure(s) and outcome(s)]?
+      + What are the alternative explanations for the relationship(s) [confounders in our DAGs]?
+      
+  2. Ideas
+      + Age standardization (once access to full data)? See Epi III, Lecture 9, Slide 23
