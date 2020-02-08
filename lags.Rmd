@@ -281,7 +281,15 @@ anomalies_lag3 =
     lag5 = lag(wk_pos_t_anomaly, 5, order_by = woy3),
     lag6 = lag(wk_pos_t_anomaly, 6, order_by = woy3),
     lag7 = lag(wk_pos_t_anomaly, 7, order_by = woy3),
-    lag8 = lag(wk_pos_t_anomaly, 8, order_by = woy3)
+    lag8 = lag(wk_pos_t_anomaly, 8, order_by = woy3),
+    lag9 = lag(wk_pos_t_anomaly, 9,  order_by = woy3),
+    lag10 = lag(wk_pos_t_anomaly, 10, order_by = woy3),
+    lag11 = lag(wk_pos_t_anomaly, 11, order_by = woy3),
+    lag12 = lag(wk_pos_t_anomaly, 12, order_by = woy3),
+    lag13 = lag(wk_pos_t_anomaly, 13, order_by = woy3),
+    lag14 = lag(wk_pos_t_anomaly, 14, order_by = woy3),
+    lag15 = lag(wk_pos_t_anomaly, 15, order_by = woy3),
+    lag16 = lag(wk_pos_t_anomaly, 16, order_by = woy3)
   )
 
 ## I think this worked! anomalies_lag3
@@ -349,35 +357,43 @@ nsp_anomalies_wk_lag =
 
 Now, I'll construct log-binomial models to calculate prevalence ratios (PRs) at differing lags and plot the results.
 
-Non-lagged crude models:
+Lagged crude models for weekly anomalies (lags at 0 to 8 weeks):
 
 ```{r crude_models}
 
-## crude log-binomial model: daily positive tmax anomaly
-logbin_crude_t_pos_day =
-  logbin(
-    data = nsp_anomalies_wk_lag,
-    formula = wasting ~ day_pos_t_anomaly,
-    method = 'em',
-    accelerate = 'squarem' # these two options speed the convergence
-  )
+# ## crude log-binomial model: daily positive tmax anomaly ######
+# logbin_crude_t_pos_day =
+#   logbin(
+#     data = nsp_anomalies_wk_lag,
+#     formula = wasting ~ day_pos_t_anomaly,
+#     method = 'em',
+#     accelerate = 'squarem' # these two options speed the convergence
+#   )
+# 
+# logbin_crude_t_pos_day %>% 
+#   broom::tidy()
 
-logbin_crude_t_pos_day %>% 
-  broom::tidy()
 
-## crude model: weekly positive tmax anomaly
+
+## adjusted model: weekly positive tmax anomaly #########
 logbin_crude_t_pos_wk =
+  nsp_anomalies_wk_lag %>% 
+  mutate(
+    surv_area = as.factor(surv_area),
+    woy = as.factor(woy),
+    year = as.factor(year),
+    moy = as.factor(moy)
+  ) %>% 
   logbin(
-    data = nsp_anomalies_wk_lag,
-    formula = wasting ~ lag8,
+    data = .,
+    formula = wasting ~ wk_pos_t_anomaly +
+      surv_area + moy + year,
     method = 'em',
     accelerate = 'squarem' # these two options speed the convergence
-  )
+  ) %>% 
+    broom::tidy()
 
-logbin_crude_t_pos_wk %>% 
-  broom::tidy()
-
-# ## crude model: monthly positive tmax anomaly
+# ## crude model: monthly positive tmax anomaly ###########
 # logbin_crude_t_pos_mo =
 #   logbin(
 #     data = nsp_anomalies,
@@ -391,157 +407,128 @@ logbin_crude_t_pos_wk %>%
 
 ```
 
-Lagged crude models for weekly anomalies (lags at 0 to 8 weeks):
-
-```{r crude_lagged}
-############
-## create table with every combination of surv_area, year, woy
-area =
-  tibble(
-    surv_area = 4:25,
-    k = 1
-  )
-
-yr = 
-  tibble(
-    year = 1990:2006,
-    k = 1
-  )
-
-wk =
-  tibble(
-    woy = 1:52,
-    k = 1
-  )
-
-## table with all combinations
-area_yr_wk =
-  full_join(
-    area,
-    yr,
-    by = 'k'
-  ) %>% 
-  full_join(
-    .,
-    wk,
-    by = 'k'
-  ) %>% 
-  select(-k)
-
-## create week-level df to join with blank table able, compute grouped dplyr::lag() (can't lag within groups in `anomalies` df)
-anomalies_distinct =  
-  anomalies %>% 
-  select(
-    surv_area,
-    year,
-    woy,
-    wkyr_avg_tmax,
-    wk_avg_tmax,
-    wk_pos_t_anomaly
-  ) %>%
-  group_by(
-    surv_area,
-    year,
-    woy
-  ) %>% 
-  distinct()
-
-## full join with existing dataframe
-lag_df =
-  full_join(
-    area_yr_wk,
-    anomalies_distinct,
-    by = c('surv_area', 'year', 'woy')
-  ) %>% 
-
-## compute lagged values for eligible weeks
-  group_by(surv_area, year) %>% 
-  mutate(
-    anom_lag1 = lag(wk_pos_t_anomaly, 1, order_by = woy)
-  )
-
-## LEFT join this back with anomalies to only keep values in anomalies
-anomalies_week =
-  anomalies %>% 
-  left_join(
-    .,
-    lag_df,
-    by = c('surv_area', 'year', 'woy', 'wkyr_avg_tmax', 'wk_avg_tmax', 'wk_pos_t_anomaly')
-  ) %>% 
-  drop_na() # silly anomalies work - forgot that I had consistent timeseries from ENACTS data
-
-#########
-```
-
-There are `r nrows(anomalies_week)` observations with a prior week from which a 1-lagged weekly tmax anomaly can be calculated. Let's write a function that creates a DF with lags 0 through 8 now.
-
-```{r lag_function}
-
-## copied and pasted - figure out a better solution later
-
-lag_df =
-  nsp_anomalies %>% 
-  group_by(
-    surv_area,
-    year
-  ) %>% 
-  # mutate(                                                            creating lag within weekly ENACTS dataset
-  #   lag1 = lag(wk_pos_t_anomaly, 1, order_by = woy),
-  #   lag2 = lag(wk_pos_t_anomaly, 2, order_by = woy),
-  #   lag3 = lag(wk_pos_t_anomaly, 3, order_by = woy),
-  #   lag4 = lag(wk_pos_t_anomaly, 4, order_by = woy),
-  #   lag5 = lag(wk_pos_t_anomaly, 5, order_by = woy),
-  #   lag6 = lag(wk_pos_t_anomaly, 6, order_by = woy),
-  #   lag7 = lag(wk_pos_t_anomaly, 7, order_by = woy),
-  #   lag8 = lag(wk_pos_t_anomaly, 8, order_by = woy)
-  # )
-
-########################## *************** NEED TO REDO WITH FULL ENACTS DATASET *************** ##########################
-
-# new_lag_df = data.frame()
-# 
-# for (i in 1:9) {
-# 
-#   lag[[i]] =
-#     lag_df %>%
-#     mutate(
-#       lag = lag(wk_pos_t_anomaly, i - 1, order_by = woy)
-#     )
-# 
-#   new_lag_df[[i]] = lag
-# 
-#   lag_df[[ncol(lag_df) + 1]] =
-#     mutate(
-#       sprintf("lag%i", i - 1) = lag(wk_pos_t_anomaly, (i - 1), order_by = woy)
-#       # anom_lag1 = lag(wk_pos_t_anomaly, (i - 1), order_by = woy)
-#     )
-# 
-# }
-# 
-# new_lag_df %>%
-#   bind_cols() %>% view()
-
-```
-
-
-```{r crude_lagged1}
-
-full_lag_df =
-  left_join(anomalies_week, lag_df)
-
-lagged_logbin_crude =
-  logbin(
-    data = anomalies_week,
-    formula = wasting ~ anom_lag1,
-    method = 'em',
-    accelerate = 'squarem' # these two options speed the convergence
-  )
-
-lagged_logbin_crude %>% 
-  broom::tidy()
-
-```
+There are `r nrows(nsp_anomalies_wk_lag)` observations with a prior week from which a 1-lagged weekly tmax anomaly can be calculated. Let's write a function that creates a DF with lags 0 through 8 now.
 
 ## Adjusted log-binomial models with lags
 
-READ NOTE AT TOP - NEED TO REDO WITH FULL ENACTS DATASET
+```{r adj_lags}
+
+## creating df
+adj_lag_data =
+  nsp_anomalies_wk_lag %>% 
+  mutate(
+    surv_area = as.factor(surv_area),
+    woy = as.factor(woy),
+    year = as.factor(year),
+    moy = as.factor(moy)
+  ) %>% 
+  select(everything(), lag0 = wk_pos_t_anomaly)
+
+
+adj_lags = function(beta1) {
+  
+  df =
+    adj_lag_data %>% 
+    select(
+      y = wasting,
+      x = beta1,
+      surv_area, moy, year
+    )
+  
+  lag_fit =
+    logbin(
+      data = df,
+      formula = y ~ x +    ## substitute vector of lag varnames for x
+        surv_area + moy + year,
+      method = 'em',
+      accelerate = 'squarem' # these two options speed the convergence
+    ) %>% 
+  
+  # lag_fit2 = 
+  #   lag_fit %>% 
+    broom::tidy() %>% 
+    filter(
+      term == 'x'
+    ) %>% 
+    mutate(
+      upper = estimate + 1.96 * std.error,
+      lower = estimate - 1.96 * std.error
+    ) %>% 
+    select(-term)
+  
+  lag_fit
+  
+}
+
+
+## to create this, I commented out the covariates in the logbin model above (in the function) - figure out a reproducible way
+# test_results_crude =
+#   tibble(beta1_df = c('lag0', 'lag1', 'lag2', 'lag3', 'lag4', 'lag5', 'lag6', 'lag7', 'lag8', 'lag9', 'lag10', 'lag11', 'lag12', 'lag13', 'lag14', 'lag15', 'lag16')) %>% 
+#   mutate(
+#     output_lists = map(.x = beta1_df, ~adj_lags(beta1 = .x)),
+#     estimates = map(output_lists, bind_rows)) %>% 
+#   select(-output_lists) %>% 
+#   unnest(estimates) %>% 
+#   janitor::clean_names()
+# 
+# test_results_adj =
+#   tibble(beta1_df = c('lag0', 'lag1', 'lag2', 'lag3', 'lag4', 'lag5', 'lag6', 'lag7', 'lag8', 'lag9', 'lag10', 'lag11', 'lag12', 'lag13', 'lag14', 'lag15', 'lag16')) %>% 
+#   mutate(
+#     output_lists = map(.x = beta1_df, ~adj_lags(beta1 = .x)),
+#     estimates = map(output_lists, bind_rows)) %>% 
+#   select(-output_lists) %>% 
+#   unnest(estimates) %>% 
+#   janitor::clean_names()
+
+## saveRDS(test_results_crude, file = "./logbin_results/test_crude.RDS")
+test_results_crude2 =
+  readRDS(file = "./logbin_results/test_crude.RDS")
+
+## saveRDS(test_results_adj, file = "./logbin_results/test_adj.RDS")
+test_results_adj2 =
+  readRDS(file = "./logbin_results/test_adj.RDS")
+```
+
+## Visualizing crude + adjusted results
+
+```{r viz}
+
+## crude plot
+test_results_crude %>% 
+  mutate(
+    beta1_df = as.ordered(beta1_df),
+    time = 0:16,
+    beta1_df = fct_reorder(beta1_df, time)) %>% 
+  ggplot(
+    aes(x = beta1_df,
+        y = exp(estimate),
+        ymin = exp(lower),
+        ymax = exp(upper))
+  ) +
+    geom_point() +
+    geom_errorbar() +
+    geom_hline(yintercept = 1) +
+    theme_light() +
+  labs(title = "crude")
+
+
+## adj plot
+test_results_adj %>% 
+  mutate(
+    beta1_df = as.ordered(beta1_df),
+    time = 0:16,
+    beta1_df = fct_reorder(beta1_df, time)) %>% 
+  ggplot(
+    aes(x = beta1_df,
+        y = exp(estimate),
+        ymin = exp(lower),
+        ymax = exp(upper))
+  ) +
+    geom_point() +
+    geom_errorbar() +
+    geom_hline(yintercept = 1) +
+    theme_light() +
+  labs(title = "adjusted")
+
+```
+
