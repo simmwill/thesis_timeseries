@@ -97,19 +97,35 @@ anomalies =
   ## day avg
   group_by(surv_area, doy) %>% 
   mutate(
+    
     day_avg_tmax = mean(tmax),                         ## day-of-year avg for each area
-    day_pos_t_anomaly = tmax - day_avg_tmax,           ## anomaly for each area
+    day_pos_t_anomaly = tmax - day_avg_tmax,           ## pos t anomaly for each area day
     day_pos_t_anomaly = case_when(                     ## excluding anomalous values less than 0
       day_pos_t_anomaly < 0 ~ 0,
       TRUE ~ day_pos_t_anomaly
+    ),
+    
+    day_avg_p = mean(precip),                         ## day-of-year avg for each area
+    day_p_anomaly = precip - day_avg_p,               ## pos p anomaly for each area day
+    day_pos_p_anomaly = case_when(                     ## excluding anomalous values less than 0
+      day_p_anomaly < 0 ~ 0,
+      TRUE ~ day_p_anomaly
+    ),
+    
+    day_neg_p_anomaly = case_when( 
+      day_pos_p_anomaly > 0 ~ 0,                     ## neg p anomaly for each area day
+      TRUE ~ day_p_anomaly                          ## excluding anomalous values greater than 0
     )
+    
   ) %>% 
+  select(-day_p_anomaly) %>%                         ## getting rid of overall p anomaly created as intermediate step above
   ungroup() %>%
   
   ## week-within-year avg
   group_by(surv_area, year, woy) %>%                  ## grouping by area, year, and week
   mutate(
-    wkyr_avg_tmax = mean(tmax)                        ## avg tmax for week-within-year
+    wkyr_avg_tmax = mean(tmax),                        ## avg tmax for week-within-year
+    wkyr_avg_p = mean(precip)
   ) %>% 
   ungroup() %>% 
   
@@ -122,14 +138,29 @@ anomalies =
     wk_pos_t_anomaly = case_when(                     ## excluding anomalous values less than 0
       wk_pos_t_anomaly < 0 ~ 0,
       TRUE ~ wk_pos_t_anomaly
+    ),
+    
+    wk_avg_p = mean(precip),                         ## avg p for week-across-years
+    wk_p_anomaly = 
+      wkyr_avg_p - wk_avg_p,                          ## anomaly for each area (how far is week-within-year from week-across-years)
+    wk_pos_p_anomaly = case_when(                     ## excluding anomalous values less than 0
+      wk_p_anomaly < 0 ~ 0,
+      TRUE ~ wk_p_anomaly
+    ),
+    
+    wk_neg_p_anomaly = case_when(                     ## excluding anomalous values grtr than 0
+      wk_p_anomaly > 0 ~ 0,
+      TRUE ~ wk_p_anomaly
     )
   ) %>% 
+  select(-wk_p_anomaly) %>%                          ## gtting rid of overall anomaly variable for wk
   ungroup() %>% 
   
   ## month-within-year avg
   group_by(surv_area, year, moy) %>%                  ## grouping by area, year, and month
   mutate(
-    moyr_avg_tmax = mean(tmax)
+    moyr_avg_tmax = mean(tmax),
+    moyr_avg_p = mean(precip)
   ) %>% 
   ungroup() %>% 
   
@@ -142,8 +173,26 @@ anomalies =
     mo_pos_t_anomaly = case_when(                     ## excluding anomalous values less than 0
       mo_pos_t_anomaly < 0 ~ 0,
       TRUE ~ mo_pos_t_anomaly
+    ),
+    
+    mo_avg_p = mean(precip),
+    mo_p_anomaly = 
+      moyr_avg_p - mo_avg_p,                    ## anomaly for each area (how far is mo-within-year from mo-across-years)
+    mo_pos_p_anomaly = case_when(                     ## excluding anomalous values less than 0
+      mo_p_anomaly < 0 ~ 0,
+      TRUE ~ mo_p_anomaly
+    ),
+    
+    mo_avg_p = mean(precip),
+    mo_p_anomaly = 
+      moyr_avg_p - mo_avg_p,                    ## anomaly for each area (how far is mo-within-year from mo-across-years)
+    mo_neg_p_anomaly = case_when(                     ## excluding anomalous values grtr than 0
+      mo_p_anomaly > 0 ~ 0,
+      TRUE ~ mo_p_anomaly
     )
+  
   ) %>% 
+  select(-mo_p_anomaly) %>%                    ## gtting rid of overall anomaly variable for month
   ungroup()
 
 ```
@@ -155,16 +204,22 @@ A bit confusing, but here's what we have, all specific to a respective geographi
   * `tmax`: day-within-year maximum temperature
   * `day_avg_tmax`: longterm day-across-years mean `tmax`
   * `day_pos_t_anomaly`: how far is `tmax` on a given day from the longterm mean `tmax` across years on that day of year (1-365)?
+  * `day_pos_p_anomaly`: similar to above, but for precipitation
+  * `day_neg_p_anomaly`: I coded a negative precipitation anomaly, since low rainfall could be important for crops, etc.
   
   * `wkyr_avg_tmax`: week-within-year mean `tmax`
   * `wk_avg_tmax`: longterm week-across-years mean `tmax`
   * `wk_pos_t_anomaly`: how far is mean `tmax` across a given week from the longterm mean across years for that week of the year (1-52)?
+  * `wk_pos_p_anomaly`: similar to above, but for precipitation
+  * `wk_neg_p_anomaly`: same but negative precipitation anomalies on a weekly scale
   
   * `moyr_avg_tmax`: month-within-year mean `tmax`
   * `mo_avg_tmax`: longterm month-across-years mean `tmax` 
   * `mo_pos_t_anomaly`: how far is mean `tmax` across a given month from the longerm mean across years for that month of the year (1-12)?
+  * `mo_pos_p_anomaly`: similar to above, but for precipitation
+  * `mo_neg_p_anomaly`: same but negative precipitation anomalies on a monthly scale
   
-  * NOTE: all anomaly variables are positive anomalies only (i.e. anomalies below 0 have been recoded as 0)
+  * NOTE: all temp anomaly variables are positive anomalies only (i.e. anomalies below 0 have been recoded as 0). For precip, both positive and negative anomalies have been coded separately.
 
 ## Creating lags within ENACTS dataset
 
@@ -262,7 +317,11 @@ anomalies_lag3 =
     year,
     wkyr_avg_tmax,
     wk_avg_tmax,
-    wk_pos_t_anomaly
+    wk_pos_t_anomaly,
+    wkyr_avg_p,
+    wk_avg_p,
+    wk_pos_p_anomaly,
+    wk_neg_p_anomaly
   ) %>%
   distinct() %>%              ## make only week-level by calling distinct() --> merges like rows
   arrange(
@@ -274,22 +333,57 @@ anomalies_lag3 =
     # woy
   ) %>%
   mutate(                                                           ## creating lags within weekly ENACTS dataset
-    lag1 = lag(wk_pos_t_anomaly, 1, order_by = woy3),
-    lag2 = lag(wk_pos_t_anomaly, 2, order_by = woy3),
-    lag3 = lag(wk_pos_t_anomaly, 3, order_by = woy3),
-    lag4 = lag(wk_pos_t_anomaly, 4, order_by = woy3),
-    lag5 = lag(wk_pos_t_anomaly, 5, order_by = woy3),
-    lag6 = lag(wk_pos_t_anomaly, 6, order_by = woy3),
-    lag7 = lag(wk_pos_t_anomaly, 7, order_by = woy3),
-    lag8 = lag(wk_pos_t_anomaly, 8, order_by = woy3),
-    lag9 = lag(wk_pos_t_anomaly, 9,  order_by = woy3),
-    lag10 = lag(wk_pos_t_anomaly, 10, order_by = woy3),
-    lag11 = lag(wk_pos_t_anomaly, 11, order_by = woy3),
-    lag12 = lag(wk_pos_t_anomaly, 12, order_by = woy3),
-    lag13 = lag(wk_pos_t_anomaly, 13, order_by = woy3),
-    lag14 = lag(wk_pos_t_anomaly, 14, order_by = woy3),
-    lag15 = lag(wk_pos_t_anomaly, 15, order_by = woy3),
-    lag16 = lag(wk_pos_t_anomaly, 16, order_by = woy3)
+    lag1_t = lag(wk_pos_t_anomaly, 1, order_by = woy3),             ## lags in pos t anomalies by week
+    lag2_t = lag(wk_pos_t_anomaly, 2, order_by = woy3),
+    lag3_t = lag(wk_pos_t_anomaly, 3, order_by = woy3),
+    lag4_t = lag(wk_pos_t_anomaly, 4, order_by = woy3),
+    lag5_t = lag(wk_pos_t_anomaly, 5, order_by = woy3),
+    lag6_t = lag(wk_pos_t_anomaly, 6, order_by = woy3),
+    lag7_t = lag(wk_pos_t_anomaly, 7, order_by = woy3),
+    lag8_t = lag(wk_pos_t_anomaly, 8, order_by = woy3),
+    lag9_t = lag(wk_pos_t_anomaly, 9,  order_by = woy3),
+    lag10_t = lag(wk_pos_t_anomaly, 10, order_by = woy3),
+    lag11_t = lag(wk_pos_t_anomaly, 11, order_by = woy3),
+    lag12_t = lag(wk_pos_t_anomaly, 12, order_by = woy3),
+    lag13_t = lag(wk_pos_t_anomaly, 13, order_by = woy3),
+    lag14_t = lag(wk_pos_t_anomaly, 14, order_by = woy3),
+    lag15_t = lag(wk_pos_t_anomaly, 15, order_by = woy3),
+    lag16_t = lag(wk_pos_t_anomaly, 16, order_by = woy3),
+    
+    lag1_p_pos = lag(wk_pos_p_anomaly, 1, order_by = woy3),            ## lags in pos p anomalies by wk
+    lag2_p_pos = lag(wk_pos_p_anomaly, 2, order_by = woy3),
+    lag3_p_pos = lag(wk_pos_p_anomaly, 3, order_by = woy3),
+    lag4_p_pos = lag(wk_pos_p_anomaly, 4, order_by = woy3),
+    lag5_p_pos = lag(wk_pos_p_anomaly, 5, order_by = woy3),
+    lag6_p_pos = lag(wk_pos_p_anomaly, 6, order_by = woy3),
+    lag7_p_pos = lag(wk_pos_p_anomaly, 7, order_by = woy3),
+    lag8_p_pos = lag(wk_pos_p_anomaly, 8, order_by = woy3),
+    lag9_p_pos = lag(wk_pos_p_anomaly, 9,  order_by = woy3),
+    lag10_p_pos = lag(wk_pos_p_anomaly, 10, order_by = woy3),
+    lag11_p_pos = lag(wk_pos_p_anomaly, 11, order_by = woy3),
+    lag12_p_pos = lag(wk_pos_p_anomaly, 12, order_by = woy3),
+    lag13_p_pos = lag(wk_pos_p_anomaly, 13, order_by = woy3),
+    lag14_p_pos = lag(wk_pos_p_anomaly, 14, order_by = woy3),
+    lag15_p_pos = lag(wk_pos_p_anomaly, 15, order_by = woy3),
+    lag16_p_pos = lag(wk_pos_p_anomaly, 16, order_by = woy3),
+    
+    lag1_p_neg = lag(wk_neg_p_anomaly, 1, order_by = woy3),            ## lags in neg p anomalies by wk
+    lag2_p_neg = lag(wk_neg_p_anomaly, 2, order_by = woy3),
+    lag3_p_neg = lag(wk_neg_p_anomaly, 3, order_by = woy3),
+    lag4_p_neg = lag(wk_neg_p_anomaly, 4, order_by = woy3),
+    lag5_p_neg = lag(wk_neg_p_anomaly, 5, order_by = woy3),
+    lag6_p_neg = lag(wk_neg_p_anomaly, 6, order_by = woy3),
+    lag7_p_neg = lag(wk_neg_p_anomaly, 7, order_by = woy3),
+    lag8_p_neg = lag(wk_neg_p_anomaly, 8, order_by = woy3),
+    lag9_p_neg = lag(wk_neg_p_anomaly, 9,  order_by = woy3),
+    lag10_p_neg = lag(wk_neg_p_anomaly, 10, order_by = woy3),
+    lag11_p_neg = lag(wk_neg_p_anomaly, 11, order_by = woy3),
+    lag12_p_neg = lag(wk_neg_p_anomaly, 12, order_by = woy3),
+    lag13_p_neg = lag(wk_neg_p_anomaly, 13, order_by = woy3),
+    lag14_p_neg = lag(wk_neg_p_anomaly, 14, order_by = woy3),
+    lag15_p_neg = lag(wk_neg_p_anomaly, 15, order_by = woy3),
+    lag16_p_neg = lag(wk_neg_p_anomaly, 16, order_by = woy3)
+
   )
 
 ## I think this worked! anomalies_lag3
@@ -376,22 +470,22 @@ Lagged crude models for weekly anomalies (lags at 0 to 8 weeks):
 
 
 ## adjusted model: weekly positive tmax anomaly #########
-logbin_crude_t_pos_wk =
-  nsp_anomalies_wk_lag %>% 
-  mutate(
-    surv_area = as.factor(surv_area),
-    woy = as.factor(woy),
-    year = as.factor(year),
-    moy = as.factor(moy)
-  ) %>% 
-  logbin(
-    data = .,
-    formula = wasting ~ wk_pos_t_anomaly +
-      surv_area + moy + year,
-    method = 'em',
-    accelerate = 'squarem' # these two options speed the convergence
-  ) %>% 
-    broom::tidy()
+# logbin_crude_t_pos_wk =
+#   nsp_anomalies_wk_lag %>% 
+#   mutate(
+#     surv_area = as.factor(surv_area),
+#     woy = as.factor(woy),
+#     year = as.factor(year),
+#     moy = as.factor(moy)
+#   ) %>% 
+#   logbin(
+#     data = .,
+#     formula = wasting ~ wk_pos_t_anomaly +
+#       surv_area + moy + year,
+#     method = 'em',
+#     accelerate = 'squarem' # these two options speed the convergence
+#   ) %>% 
+#     broom::tidy()
 
 # ## crude model: monthly positive tmax anomaly ###########
 # logbin_crude_t_pos_mo =
@@ -422,13 +516,18 @@ adj_lag_data =
     year = as.factor(year),
     moy = as.factor(moy)
   ) %>% 
-  select(everything(), lag0 = wk_pos_t_anomaly)
+  select(everything(), 
+         lag0_t = wk_pos_t_anomaly,
+         lag0_p_pos = wk_pos_p_anomaly,
+         lag0_p_neg = wk_neg_p_anomaly)
 
 
 adj_lags = function(beta1) {
+  set.seed(1) ## going to sample to speed this up, so need consistent seed set
   
   df =
     adj_lag_data %>% 
+    sample_frac(.1) %>% ## taking .1 of the data
     select(
       y = wasting,
       x = beta1,
@@ -439,7 +538,7 @@ adj_lags = function(beta1) {
     logbin(
       data = df,
       formula = y ~ x +    ## substitute vector of lag varnames for x
-        surv_area + moy + year,
+        surv_area + moy + year, ## region, season, and year are main potential confounders
       method = 'em',
       accelerate = 'squarem' # these two options speed the convergence
     ) %>% 
@@ -460,10 +559,11 @@ adj_lags = function(beta1) {
   
 }
 
+## POS T
 
 ## to create this, I commented out the covariates in the logbin model above (in the function) - figure out a reproducible way
-# test_results_crude =
-#   tibble(beta1_df = c('lag0', 'lag1', 'lag2', 'lag3', 'lag4', 'lag5', 'lag6', 'lag7', 'lag8', 'lag9', 'lag10', 'lag11', 'lag12', 'lag13', 'lag14', 'lag15', 'lag16')) %>% 
+# test_results_crude_t =
+#   tibble(beta1_df = c('lag0_t','lag1_t','lag2_t','lag3_t','lag4_t','lag5_t','lag6_t','lag7_t','lag8_t','lag9_t','lag10_t','lag11_t','lag12_t','lag13_t','lag14_t','lag15_t','lag16_t')) %>% 
 #   mutate(
 #     output_lists = map(.x = beta1_df, ~adj_lags(beta1 = .x)),
 #     estimates = map(output_lists, bind_rows)) %>% 
@@ -471,8 +571,8 @@ adj_lags = function(beta1) {
 #   unnest(estimates) %>% 
 #   janitor::clean_names()
 # 
-# test_results_adj =
-#   tibble(beta1_df = c('lag0', 'lag1', 'lag2', 'lag3', 'lag4', 'lag5', 'lag6', 'lag7', 'lag8', 'lag9', 'lag10', 'lag11', 'lag12', 'lag13', 'lag14', 'lag15', 'lag16')) %>% 
+# test_results_adj_t =
+#   tibble(beta1_df = c('lag0_t','lag1_t','lag2_t','lag3_t','lag4_t','lag5_t','lag6_t','lag7_t','lag8_t','lag9_t','lag10_t','lag11_t','lag12_t','lag13_t','lag14_t','lag15_t','lag16_t')) %>% 
 #   mutate(
 #     output_lists = map(.x = beta1_df, ~adj_lags(beta1 = .x)),
 #     estimates = map(output_lists, bind_rows)) %>% 
@@ -480,13 +580,63 @@ adj_lags = function(beta1) {
 #   unnest(estimates) %>% 
 #   janitor::clean_names()
 
+## POS PRECIP
+
+# test_results_crude_p_pos =
+#   tibble(beta1_df = c('lag0_p_pos','lag1_p_pos','lag2_p_pos','lag3_p_pos','lag4_p_pos','lag5_p_pos','lag6_p_pos','lag7_p_pos','lag8_p_pos','lag9_p_pos','lag10_p_pos','lag11_p_pos','lag12_p_pos','lag13_p_pos','lag14_p_pos','lag15_p_pos','lag16_p_pos')) %>%
+#   mutate(
+#     output_lists = map(.x = beta1_df, ~adj_lags(beta1 = .x)),
+#     estimates = map(output_lists, bind_rows)) %>%
+#   select(-output_lists) %>%
+#   unnest(estimates) %>%
+#   janitor::clean_names()
+# 
+# test_results_adj_p_pos =
+#   tibble(beta1_df = c('lag0_p_pos','lag1_p_pos','lag2_p_pos','lag3_p_pos','lag4_p_pos','lag5_p_pos','lag6_p_pos','lag7_p_pos','lag8_p_pos','lag9_p_pos','lag10_p_pos','lag11_p_pos','lag12_p_pos','lag13_p_pos','lag14_p_pos','lag15_p_pos','lag16_p_pos')) %>%
+#   mutate(
+#     output_lists = map(.x = beta1_df, ~adj_lags(beta1 = .x)),
+#     estimates = map(output_lists, bind_rows)) %>%
+#   select(-output_lists) %>%
+#   unnest(estimates) %>%
+#   janitor::clean_names()
+
+
+## NEG PRECIP
+
+# test_results_crude_p_neg =
+#   tibble(beta1_df = c('lag0_p_neg','lag1_p_neg','lag2_p_neg','lag3_p_neg','lag4_p_neg','lag5_p_neg','lag6_p_neg','lag7_p_neg','lag8_p_neg','lag9_p_neg','lag10_p_neg','lag11_p_neg','lag12_p_neg','lag13_p_neg','lag14_p_neg','lag15_p_neg','lag16_p_neg')) %>% 
+#   mutate(
+#     output_lists = map(.x = beta1_df, ~adj_lags(beta1 = .x)),
+#     estimates = map(output_lists, bind_rows)) %>% 
+#   select(-output_lists) %>% 
+#   unnest(estimates) %>% 
+#   janitor::clean_names()
+# 
+test_results_adj_p_neg =
+  tibble(beta1_df = c('lag0_p_neg','lag1_p_neg','lag2_p_neg','lag3_p_neg','lag4_p_neg','lag5_p_neg','lag6_p_neg','lag7_p_neg','lag8_p_neg','lag9_p_neg','lag10_p_neg','lag11_p_neg','lag12_p_neg','lag13_p_neg','lag14_p_neg','lag15_p_neg','lag16_p_neg')) %>%
+  mutate(
+    output_lists = map(.x = beta1_df, ~adj_lags(beta1 = .x)),
+    estimates = map(output_lists, bind_rows)) %>%
+  select(-output_lists) %>%
+  unnest(estimates) %>%
+  janitor::clean_names()
+
 ## saveRDS(test_results_crude, file = "./logbin_results/test_crude.RDS")
-test_results_crude2 =
+test_results_crude2_t =
   readRDS(file = "./logbin_results/test_crude.RDS")
 
 ## saveRDS(test_results_adj, file = "./logbin_results/test_adj.RDS")
-test_results_adj2 =
+test_results_adj2_t =
   readRDS(file = "./logbin_results/test_adj.RDS")
+
+## saveRDS(test_results_adj_p_pos, file = "./logbin_results/test_adj_p_pos.RDS")
+test_results_adj_p_pos =
+  readRDS(file = "./logbin_results/test_adj_p_pos.RDS")
+
+## saveRDS(test_results_adj_p_neg, file = "./logbin_results/test_adj_p_neg.RDS")
+test_results_adj_p_neg =
+  readRDS(file = "./logbin_results/test_adj_p_neg.RDS")
+
 ```
 
 ## Visualizing crude + adjusted results
@@ -494,7 +644,7 @@ test_results_adj2 =
 ```{r viz}
 
 ## crude plot
-test_results_crude %>% 
+test_results_crude_p_pos %>% 
   mutate(
     beta1_df = as.ordered(beta1_df),
     time = 0:16,
@@ -513,7 +663,7 @@ test_results_crude %>%
 
 
 ## adj plot
-test_results_adj %>% 
+test_results_adj_p_neg %>% 
   mutate(
     beta1_df = as.ordered(beta1_df),
     time = 0:16,

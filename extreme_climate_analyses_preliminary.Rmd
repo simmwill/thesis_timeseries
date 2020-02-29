@@ -297,6 +297,7 @@ results_temp =
     ## lags (weeks for tmax, ~4 months for precip?)
         ## model that plots multiple lags
     ## nature of extreme event - how to make lag variable most interpretable? use anomaly here?
+set.seed(1)
 adj_results = 
   nsp_enacts_extreme %>% 
   sample_frac(.5) %>% 
@@ -307,6 +308,11 @@ adj_results =
     method = 'em',
     accelerate = 'squarem'
   )
+
+## sampled half of dataset to speed calculation, so below are only estimates based on sample of sample
+## just temp_indicator + covariates in model above --> indicator1 est = 0.0349 (PR = 1.035516, p<0.005), indicator2 NS
+## just precip_indicator + covariates in model above --> indicator NS
+## both in model --> precip NS, temp1 0.0340 (PR = 1.034585, p<0.005), temp2 NS
 
 ```
 

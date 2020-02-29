@@ -1,0 +1,36 @@
+---
+title: "Analytic Plan - ACToday Extreme Climate / Wasting Manuscript"
+date: "4 March 2020"
+output: html_document
+---
+
+#### *Summary*
+
+...
+
+#### *Introduction - Outline*
+
+  * Climate increasingly variable with higher average temperatures and increased frequency of extreme events already observed
+    + IPCC, 2018
+  * Bangladesh consistently indicated as one of the most vulnerable countries to the effects of climate change
+    + Ali, 1999
+    + Huq, 2001
+    + Minar et al, 2013
+    + Eckstein et al, 2018
+  * Climate is inextricably linked to health, with some of the most direct effects seen in agriculture and nutrition 
+    + Fanzo et al, 2017
+    + IPCC, 2018
+    + United Nations General Assembly, 2019
+  * Research has identified several pathways by which climate can influence nutrition
+    + Food and financial insecurity, primarily via agricultural pathways
+    + Gender-based disempowerment
+    + Health services
+    + Environmental factors that cause disease spread
+    + Herforth et al, 2014
+  * Malnutrition is an important health outcome, especially among children
+    + UNICEF, 2019
+    + World Health Organization, 2019
+  * Wasting (weight-for-height)
+    + Valid measure of acute malnutrition in children (WHO, 2010)
+    + Valid proxy measure for a population’s overall acute nutritional status, as children respond more rapidly to nutrition-related shocks (World Food Programme, 2005)
+    + Linked with other health outcomes, such as mortality (Fauveau et al, 1990; Dicker et al, 2018)

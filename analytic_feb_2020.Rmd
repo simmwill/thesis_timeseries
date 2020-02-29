@@ -1,0 +1,198 @@
+---
+title: "Analytic Plan Feb 2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+### Overall Considerations
+
+In making sure my analyses for ACToday are optimized, I wanted to ask:
+
+  * What analyses are feasible within my limited time remaining with ACToday?
+  * What information would be most useful for the ACToday project, given its focus on climate services and policy change?
+
+### Research Questions
+
+  1. Do extreme climate events increase prevalence of wasting among children in Bangladesh?
+    a. If so, are there lags that are important to these relationships?
+
+### Methodological Considerations
+
+#### Case-Crossover Design
+
+Case-crossover studies usually require (quoted from [Columbia Mailman SPH](https://www.mailman.columbia.edu/research/population-health-methods/case-crossover-design)):
+
+  * Short-term changes in exposure
+  * Transient changes in disease risk
+  * Acute-onset disease
+  
+My main questions with regards to our data:
+
+  * What is the time threshold at which disease risk becomes 'transient'? Can we consider wasting, with a lag period of weeks to potentially months, transient?
+  * Similarly, there is uncertainty surrounding the actual 'onset' of wasting. Would it make sense to investigate these extreme events as 'triggers' that tip a child to acute malnutrition?
+  * Finally, in a case-crossover analysis of these data, would these potential lag structures interfere with our ability to select our case and control windows?
+  
+#### Log-Binomal Analysis of Cross-Sectional Data
+
+Similar to our previous analyses, these would entail comparison of wasting prevalences across differing levels of exposure, adjusting for confounders. This would produce adjusted Prevalence Ratios.
+
+Questions here:
+
+  * How do we investigate lags here - should it be a formal hypothesis testing process, or included in our exploratory analyses?
+  * We've been looking at extreme precipitation and temperature events, but less so at anomalously low values. Do we want to include these as well (e.g. drought)?
+
+#### Other Methods
+
+Have also considered:
+
+  * Distributed lag nonlinear models (DLNM) 
+    + What would this entail given our data structure?
+  * Time-series models (likely Poisson or quasi-Poisson regression?)
+    + Not necessarily mapping acute exposure/outcome but overall
+    + Could incorporate lags here
+    + Could also consider season-stratified analyses
+    
+### Exploratory Analyses
+
+I tried exploring the potential lag structures of temperature and heat anomalies. 
+
+Adjusted log-binomial models were run as follows (basic example code):
+
+```{r, eval = FALSE}
+logbin(
+  data = data,
+  formula = y ~ x +    ## substitute vector of lags for x
+    surv_area + moy + year
+)
+```
+
+Graphs of results, adjusted by year, month, and geographic region, are below.
+
+```{r, include = FALSE, echo = FALSE}
+library(tidyverse)
+library(logbin)
+
+## saveRDS(test_results_adj, file = "./logbin_results/test_adj.RDS")
+test_results_adj2_t =
+  readRDS(file = "./logbin_results/test_adj.RDS")
+
+## saveRDS(test_results_adj_p_pos, file = "./logbin_results/test_adj_p_pos.RDS")
+test_results_adj_p_pos =
+  readRDS(file = "./logbin_results/test_adj_p_pos.RDS")
+
+## saveRDS(test_results_adj_p_neg, file = "./logbin_results/test_adj_p_neg.RDS")
+test_results_adj_p_neg =
+  readRDS(file = "./logbin_results/test_adj_p_neg.RDS")
+```
+
+```{r plots, fig.width = 12}
+test_results_adj2_t %>% 
+  mutate(
+    beta1_df = as.ordered(beta1_df),
+    time = 0:16,
+    beta1_df = fct_reorder(beta1_df, time)) %>% 
+  ggplot(
+    aes(x = beta1_df,
+        y = exp(estimate),
+        ymin = exp(lower),
+        ymax = exp(upper))
+  ) +
+    geom_point() +
+    geom_errorbar() +
+    geom_hline(yintercept = 1) +
+    theme_light() +
+    labs(title = "Weekly *Positive* Temperature Anomaly (C)\nAnomaly calculated using observed mean weekly value minus the long-term mean over time period for that week of year",
+         x = "Lag",
+         y = "Prevalence Ratio + 95% CI") 
+
+test_results_adj_p_pos %>% 
+  mutate(
+    beta1_df = as.ordered(beta1_df),
+    time = 0:16,
+    beta1_df = fct_reorder(beta1_df, time)) %>% 
+  ggplot(
+    aes(x = beta1_df,
+        y = exp(estimate),
+        ymin = exp(lower),
+        ymax = exp(upper))
+  ) +
+    geom_point() +
+    geom_errorbar() +
+    geom_hline(yintercept = 1) +
+    theme_light() +
+    labs(title = "Weekly *Positive* Precipitation Anomaly (mm)\nAnomaly calculated using observed mean weekly value minus the long-term mean over time period for that week of year",
+         x = "Lag",
+         y = "Prevalence Ratio + 95% CI") 
+
+test_results_adj_p_neg %>% 
+  mutate(
+    beta1_df = as.ordered(beta1_df),
+    time = 0:16,
+    beta1_df = fct_reorder(beta1_df, time)) %>% 
+  ggplot(
+    aes(x = beta1_df,
+        y = exp(estimate),
+        ymin = exp(lower),
+        ymax = exp(upper))
+  ) +
+    geom_point() +
+    geom_errorbar() +
+    geom_hline(yintercept = 1) +
+    theme_light() +
+    labs(title = "Weekly *Negative* Precipitation Anomaly (mm)\nAnomaly calculated using observed mean weekly value minus the long-term mean over time period for that week of year",
+         x = "Lag",
+         y = "Prevalence Ratio + 95% CI") 
+
+```
+
+Notes 02/12/2020
+
+  * Continue with **log-binomial** models
+  * What are plausible biological/other pathways that could lead to these lags?
+    + High temperature
+    + High precipitation
+    + Low precipitation
+  * What is onset period of wasting, particularly with non-climate ex. in literature (e.g. onset of wasting after famine)?
+  * Operationalization of heat
+  * EM by 
+    + Season
+    + Region
+      * Politically actionable regions above survey area? --> district, level above district
+  * Self-notes
+    + Spline functions for seasonal/long-term patterns
+    + Interaction term / random effect? for region
+      
+*Next Steps*
+
+  * Literature searches:
+    + Plausible pathways from climate exposures to wasting in children
+    + Onset period of wasting from various insults (e.g. famine, non-climate but related)
+  * Consider exposure operationalizations
+  * Explore data:
+    + Differential effects by region
+    + Differential effects by season
+    
+# Notes
+
+Pathways
+
+  * Heat --> Diarrhea --> Wasting (Hashizume et al 2007, )
+  * Heat --> Cholera --> Diarrhea/other --> Wasting (Checkley et al 2000, Lama et al 2004)
+    + Lots on this - search for heat and diarrhea/cholera on Google Scholar
+  
+  * Precipitation --> Diarrhea --> Wasting ()
+  * Precipitation --> Cholera --> Diarrhea --> Wasting (Hashizume et al 2008)
+  
+  * Other ideas
+    + Health effects of ambient temperature (Xu et al 2012), diurnal temperature range (Cheng et al 2014), heat waves (Xu et al 2014) - all systematic reviews
+    + Health effects of precipitation anomalies - search Google Scholar
+    + Crop yields? (wouldn't see short-term fluctuations due to temp but maybe precip if at appropriate lag)
+    + Food prices? (not sure about temp here, but precip maybe, similar to previous bullet)
+    + Heat --> dehydration --> ??? --> wasting?
+  
+Timing
+
+  * Rapid onset of wasting - no specific timeframe given (WFP 2005)
+  * Rapid recovery - within 3 months (Rivera and Habicht 1996)
+  
