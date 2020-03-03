@@ -241,6 +241,7 @@ nsp_enacts_extreme =
     year = lubridate::year(dov),
     year = as.factor(year)
   ) 
+  
 # %>% 
   # head(10) %>% view()
   # group_by(precip_indicator) %>% summarize(n = n()) %>% select(n, precip_indicator) %>% view() # numbers for precip

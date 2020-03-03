@@ -2,15 +2,19 @@
 title: "Analytic Plan - ACToday Extreme Climate / Wasting Manuscript"
 date: "4 March 2020"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
 
 #### *Summary*
 
-...
+This is a short overview of the planned ACToday research project investigating the association between extreme climate events and acute nutritional outcomes (weight-for-height, or wasting) in children under 5.
+
+What follows is a preliminary outline of current literature and gaps, and an analytic plan containing research questions, hypotheses, and statistical modelling considerations.
 
 #### *Introduction - Outline*
 
-  * Climate increasingly variable with higher average temperatures and increased frequency of extreme events already observed
+  * Climate increasingly variable, with higher average temperatures and increased frequency of extreme events already observed and anticipated to worsen
     + IPCC, 2018
   * Bangladesh consistently indicated as one of the most vulnerable countries to the effects of climate change
     + Ali, 1999
@@ -30,7 +34,221 @@ output: html_document
   * Malnutrition is an important health outcome, especially among children
     + UNICEF, 2019
     + World Health Organization, 2019
-  * Wasting (weight-for-height)
+  * Wasting (weight-for-height) is an important measure of malnutrition
     + Valid measure of acute malnutrition in children (WHO, 2010)
     + Valid proxy measure for a population’s overall acute nutritional status, as children respond more rapidly to nutrition-related shocks (World Food Programme, 2005)
-    + Linked with other health outcomes, such as mortality (Fauveau et al, 1990; Dicker et al, 2018)
+    + Linked with other health outcomes, such as infectious disease vulnerability, impaired mental development, and mortality (Fauveau et al, 1990; Pelletier, 1994; Caulfield et al, 2006; Faruque et al, 2008; Dicker et al, 2018)
+  * Existing literature has looked at components of the climate-nutrition pathways in Bangladesh, including:
+    + Infectious disease (e.g. cholera articles by Hashizume et al: 2007/8/9/10)
+    + Health systems (Toufique et al, 2014)
+    + Food price and income shocks (Akter and Basher, 2014)
+    + Systematic review of climate-undernutrition literature- Phalkey et al, 2015
+  * Existing literature is fairly consistent on effects of climatologic factors on undernutrition
+    + See Phalkey et al, 2015 for systematic review of literature linking climate and undernutrition up to 2012
+      + Among studies, generally agreed that variations in the rainfall explain crop
+      + Extreme climate (droughts and floods) investigated in 4 studies each, with significant effect estimates 
+failures, which in turn affect nutrition
+    + _**[several others]**_
+  * However, few studies in Bangladesh have explicitly linked direct measures of climate with a standard identifier of growth faltering such as weight-for-height (WHO and UNICEF, 2009)
+    + Stewart et al, 1990 - floods may have delayed normal recovery period from seasonal malnutrition in Matlab (normally Oct-Dec)
+      + WAZ, WHZ, HAZ
+    + Tetens et al, 2002 - seasonality not observed in measure of underweight among children (lean vs. peak season)
+      + WAZ, also BMI investigated in adults
+    + Buttenheim et al, 2006 - counterintuitive results looking at difference-in-difference among post-flood vulnerable/non-vulnerable households (preliminary results - not citeable)
+      + HAZ
+    + Beier et al, 2015 - use BMI as covariate in estimating self-reported disease in coastal Bangladesh
+      + BMI
+      + We are looking at disease as a pathway to malnutrition, which may be equally justified given the known malnutrition-infection cycle (Katona and Katona-Apte, 2008; and other research)
+    + Cooper et al, 2019 - used standardized precipitation index (SPI), measure of wetness relative to long-term norm
+      + Negatively associated with WHZ in Ghana but not Bangladesh
+  * Thus, goal of this study is to link extreme climate events with a measure of acute malnutrition, weight-for-height
+  * Biologically-plausible pathways from extreme rainfall, temperature to wasting
+    + Heat
+      + Plausible pathways between extreme heat and acute malnutrition are not as readily understandable as those with extreme precipitation, but the link from heat to cholera, diarrhea, and other nutrition-adjacent outcomes is robust in the literature
+      + Proposed explanations:
+        + heat --> non-cholera diarrhea --> wasting (Singh et al 2001, Hashizume et al 2007, Mertens et al 2019)
+        + heat --> ? --> seasonal cholera --> diarrhea/immunocompromised --> wasting (Checkley et al 2000, Lama et al 2004)
+        + heat --> dehydration --> **misclassification** due to water loss --> "wasting" (Mwangome et al 2011)
+    + Precipitation
+      + The link between heavy precipitation and acute malnutrition is a bit easier to conceptualize, and related links are found throughout the literature
+      + Proposed explanations:
+        + precipitation --> contaminated runoff, water quality, environmental contact with pathogens --> non-cholera diarrhea --> wasting (Singh et al 2001, Hashizume et al 2007, Mertens et al 2019)
+        + precipitation --> river level? --> seasonal cholera --> diarrhea/immunocompromised --> wasting (Hashizume et al 2008/2010)
+  
+#### *Analysis Plan*
+
+##### *Research Questions*
+
+  1. Do extreme climate events increase prevalence of wasting among children in Bangladesh? 
+    a. Extreme heat
+    b. Extreme precipitation
+  2. If so, are there lags that are important to these relationships?
+  3. Are there differential effects by region and/or season that should be accounted for?
+  
+##### *Hypotheses*
+
+  1. Extreme heat and extreme (high) precipitation will be positively associated with prevalence of under-5 wasting in Bangladesh.
+  2. Lag periods will differ for extreme heat and extreme precipitation.
+  3. Following previous research, there will be differential associations between climate and acute malnutrition by (a) region and (b) season.
+
+##### *Methods*
+
+Variables of interest:
+
+  * Exposures
+    + **Extreme Heat Exposure**
+      + Maximum and minimum daily temperatures above 95th percentile for 3+ consecutive days
+        + Each is a "heat wave", separated from other waves by at least one day
+      + Cumulative days with maximum and minimum temperature above 95th percentile
+        + Each is a "heat wave day" without respect to continuity of days
+      + Percentile definition: Xth percentile of daily values defined over all days between 1990 and 2006 for each subdistrict
+      + Nissan et al 2017
+    + **Extreme (High) Precipitation**
+      + At least preliminarily, use definition based on above: daily precipitation above 95th percentile 
+      + Cumulative days with precipitation over 95th percentile, without respect to continuity of days
+        + "Extreme precipitation days"
+      + Can also consider approach similar to Hashizume et al (2007/8) - explore relationship between precipitation and outcome using nonlinear methods, and if appropriate, create threshold at which risk increases both above/below
+        + e.g. for a 10mm decrease in precipitation (weekly, or another aggregate measure) below the X mm treshold, risk of wasting increased by X.XX
+        
+  * Outcome
+    + **Wasting**, defined as an individual's weight-for-height Z-score (WHZ) < -2 (more than 2 standard deviations below the reference mean)
+      + In a log-binomial model using cross-sectional data, the outcome (an exponentiated beta estimate) can be interpreted as the multiplicative increase in wasting prevalence given a 1-unit increase in the predictor, holding all other covariates constant (**prevalence ratio**)
+      + Can also back-calculate to observe the **prevalence difference** - absolute difference (additive) in prevalence given a 1-unit increase in the predictor, holding all other variables constant
+    
+  * Covariates
+    + **Geographic area** (subdistrict or larger)
+    + Month of year or **season** spline
+    + Year or **long-term-trend** spline
+
+Statistical Methods:
+
+  * 
+
+
+##### *Figures*
+
+```{r}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(patchwork)
+library(gt)
+
+knitr::opts_knit$set(dev.args = list(type = "cairo"))
+
+data = readRDS('./data/nsp_enacts_extreme')
+
+```
+
+
+Figure 1: Analysis Directed Acyclic Graph (DAG)
+<br><center> <img src="images/presentation_dag.png" style = "border:5px solid"> </center><br>
+
+```{r, fig.width = 12}
+data %>% 
+  mutate(wasting = case_when(wasting == TRUE ~ "Wasting",
+                             wasting == FALSE ~ "No Wasting"),
+         wasting = as.factor(wasting)) %>% 
+  ggplot(aes(x = wasting, y = tmax, fill = wasting)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, color = "darkgrey", alpha = 0.2) +
+  labs(x = "Wasting Status",
+       y = "Maximum Temperature (C)",
+       title = "Figure 2: Daily Maximum Temperature Distribution by Wasting Status") +
+  stat_summary(fun.y = median, geom = "point", color = "darkred", size = 2) +
+  scale_fill_brewer(palette = 2) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+data %>% 
+  mutate(wasting = case_when(wasting == TRUE ~ "Wasting",
+                             wasting == FALSE ~ "No Wasting"),
+         wasting = as.factor(wasting)) %>% 
+  ggplot(aes(x = wasting, y = tmin, fill = wasting)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, color = "darkgrey", alpha = 0.2) +
+  labs(x = "Wasting Status",
+       y = "Minimum Temperature (C)",
+       title = "Figure 3: Daily Minimum Temperature Distribution by Wasting Status") +
+  stat_summary(fun.y = median, geom = "point", color = "darkred", size = 2) +
+  scale_fill_brewer(palette = 1) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+```
+
+Figure 3: Crude relationship between precipitation and wasting (daily scales)
+
+```{r, fig.width = 12}
+
+data %>% 
+  # filter(!(month %in% c(11, 12, 1, 2))) %>% 
+  group_by(surv_area, month, year) %>% 
+  mutate(precip_mo = mean(precip)) %>% 
+  ungroup() %>% 
+  mutate(wasting = case_when(wasting == TRUE ~ "Wasting",
+                             wasting == FALSE ~ "No Wasting"),
+         wasting = as.factor(wasting)) %>% 
+  ggplot(aes(x = wasting, y = precip_mo, fill = wasting)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, color = "darkgrey", alpha = 0.2) +
+  labs(x = "Wasting Status",
+       y = "Monthly Mean Precipitation (mm)",
+       title = "Figure 4: Monthly Mean Precipitation Distribution by Wasting Status",
+       caption = "Monthly mean precipitation used due to excess daily 0 values.") +
+  stat_summary(fun.y = median, geom = "point", color = "darkred", size = 2) +
+  scale_fill_brewer(palette = 4) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+```
+
+```{r, fig.width = 12}
+library(lubridate)
+library(mgcv)
+
+## time trend spaghetti plot
+data %>% 
+  mutate(month_year = lubridate::floor_date(dov, "month")) %>% 
+  group_by(area_name, surv_area, month_year) %>% 
+  summarize(wasting_month = mean(wasting)) %>% 
+  ungroup() %>% 
+ # mutate(surv_area = as.numeric(surv_area)) %>% 
+  ggplot(aes(x = month_year, y = wasting_month)) +
+  geom_point(size = .5, alpha = .5) +
+  ylim(0, 0.4) +
+  theme_bw() +
+  labs(x = "Month/Year",
+       y = "Monthly Wasting Prevalence",
+       title = "Figure 5: Monthly Wasting Prevalence, by Survey Area") +
+  
+  geom_smooth(method = gam, formula = y ~ s(x, k = 4), size = .1, alpha = .1) + ## penalized spline with 4 knots
+  
+  
+  facet_wrap(~area_name) 
+
+```
+
+##### *Remaining questions*
+
+  * Do we want to look at low-rainfall events too? Seems for shocks that high rainfall may be most important, but not sure
+  * What is the expected onset period for wasting following a causal event?
+    * Rapid onset of wasting - no specific timeframe given (WFP 2005)
+    * Rapid recovery - within 3 months (Rivera and Habicht 1996)
+  * Other pathways that are biologically plausible besides cholera/non-cholera diarrhea?
+  
+
+```{r, echo = FALSE}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(patchwork)
+library(gt)
+
+data = readRDS('./data/nsp_enacts_extreme')
+```
+
+```{r}
+
+```
+

@@ -163,12 +163,15 @@ nsp_enacts_ts =
   )
 
 # raw plot of all areas together - can see seasonal trends across areas
-
+library(splines)
+library(mgcv)
 nsp_enacts_ts %>% 
   ungroup() %>% 
+  
   filter(offset > 30) %>% # making sure weekly sample big enough - revisit this
   ggplot(aes(x = week_total, y = wasting_total / offset)) +
-  geom_point()
+  #geom_point() +
+  geom_smooth(method = gam, formula = y ~ s(x, k = 9))
 ```
 
 

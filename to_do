@@ -1,0 +1,12 @@
+TO DO
+
+  * Add district and division names to dataset for each upazila
+  
+                ## ADDING DISTRICTS 03/02/2020
+              # data %>% 
+              # mutate(
+              #   district = case_when(area_name %in% c("Pirganj") ~ "Thakurgaon",
+              #                        area_name %in% c())
+              # ) %>% 
+  
+  * 
