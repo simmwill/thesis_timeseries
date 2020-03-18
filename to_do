@@ -1,4 +1,10 @@
-TO DO
+
+
+###################################################################################################################################
+############################################################## TO DO ##############################################################
+###################################################################################################################################
+
+# Next Steps 02/20/2020 ##############################################################
 
   * Add district and division names to dataset for each upazila
   
@@ -9,4 +15,43 @@ TO DO
               #                        area_name %in% c())
               # ) %>% 
   
-  * 
+# Next Steps 03/04/2020 ##############################################################
+
+  * Reach out to Melody to see if anyone at HKI can confirm our data use ability x
+  * IRB stuff?
+    + Who will be PI?
+    + Get in touch with Matt - remain on the IRB***
+  * Confirm data with HKI
+  * Author
+    + Me
+    + Hannah (last)
+    + Matt?
+    + Shauna
+    + Robbie
+    + Walter
+    + Jillian?
+  * Journals
+    + Med
+      + Lancet Planetary Health (new)
+      + Lancet Climate Change? Maybe not
+    + Epi/Env
+      + EHP
+      + EE
+    + Epidemiology
+      + Epi
+      + AJE
+    + Nutrition?
+      + AJCN / EJCN?
+
+  * Explore data:
+    + Differential effects by region
+    + Differential effects by season
+    
+  * Sabine... with Waid - publication in Lancet Planetary Health
+  
+  * Think about 4-5 figures to present results
+    + Map - exposure and outcome-based
+    + Fourier plots? 
+      + To address long-term trend, normalize by year? 
+    + Timeseries?
+    + Look at Robbie's Figure 1-2 with mortality across different years

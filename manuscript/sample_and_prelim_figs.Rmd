@@ -1,0 +1,120 @@
+---
+title: "Preliminary Language"
+subtitle: "Manuscript"
+author: "Will Simmons"
+date: "3/5/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(patchwork)
+library(gt)
+
+knitr::opts_knit$set(dev.args = list(type = "cairo"))
+options(scipen = 999)
+
+data = readRDS('./data/nsp_enacts_extreme')
+
+```
+
+On weekly time series sample:
+
+The dataset contains 8066 weeks across 22 subdistrict-pairs.
+
+Restricting our sample to area-weeks with 30+ observations, our sample comprises an average of approximately 366 weeks (~7 years) observed per area (range 334 to 436 weeks, or 6.4 to 8.4 years). 
+
+```{r}
+
+## total weeks with >29 observations
+data %>% 
+  mutate(week = lubridate::week(dov), 
+         surv_area = as.numeric(surv_area)) %>% 
+  group_by(surv_area, area_name, year, week) %>% 
+  summarize(week_prev = mean(wasting), count_week = n()) %>% 
+  ungroup() %>% 
+  filter(count_week > 29) %>% 
+  summarize(n = n())
+
+## weeks with >29 observations, by area
+data %>% 
+  mutate(week = lubridate::week(dov), 
+         surv_area = as.numeric(surv_area)) %>% 
+  group_by(surv_area, area_name, year, week) %>% 
+  summarize(week_prev = mean(wasting), count_week = n()) %>% 
+  filter(count_week > 29) %>% 
+  group_by(surv_area, area_name) %>% 
+  summarize(area_weeks = n()) %>%
+  knitr::kable()
+  
+```
+
+Looking at the marginal mean and variance of daily, weekly, and monthly counts of wasting, we can see that our outcome is likely overdispersed. (Theoretically, to confirm this, we'd need to compare the conditional mean and variance, but the marginal mean and variance are a quick way to assess overdispersion.)
+
+*(Actually, not sure how to look at mean and variance here. Since we'll be using an offset term - i.e. the count by year, week, and area is going to change due to sample denominator - not sure if we can compare the marginal mean and variance of the count. Can we compare the denominator-adjusted count [the prevalence]?)
+
+```{r}
+## daily count overdispersion
+data %>% 
+  group_by(surv_area, area_name, year, dov) %>% 
+  summarize(day_count = n())
+
+## weekly count overdispersion (wasting_yes = outcome, count of wasting by week, year, and area)
+## this is also the best data for weekly analysis - includes yes, no, and total counts of wasting for each week ##
+data %>% 
+  mutate(week = lubridate::week(dov), 
+         surv_area = as.numeric(surv_area)) %>% 
+  group_by(surv_area, area_name, year, week) %>% 
+  count(wasting) %>% 
+  pivot_wider(
+    values_from = n,
+    names_from = wasting
+    ) %>%
+  rename("wasting_yes" = `TRUE`,
+         "wasting_no" = `FALSE`) %>%
+  filter(wasting_yes + wasting_no > 29) %>% ## ensure large enough denominator per week
+  mutate(total_week = sum(wasting_yes, wasting_no),
+         week_prev = (wasting_yes/total_week))      # %>% 
+  
+  
+  ##acutally assessing overdispersion here (continue using pipe in last paragraph)
+  ##looking at marginal mean and variance of prevalence, since we'll use offset term (basically denominator-standardized)
+  
+  ## mean/var of prevalence?
+  # ungroup() %>% 
+  # summarize(mean = mean(week_prev), var = var(week_prev))
+  ## for prevalence: mean 0.147, var 0.00454
+  
+  ## mean/var of count, regardless of denominator?
+  # ungroup() %>% 
+  # summarize(mean = mean(wasting_yes), var = var(wasting_yes))
+  ## for count: mean 11.5, var 82.8
+  
+```
+
+
+# Figure 1
+
+Grid of maps - exposure and outcome based?
+
+# Figure 2
+
+Timeseries of wasting + climate vars? Look at Robbie's Dissertation Figures 1-2, prevalence/count across years in same plots
+
+# Figure 3
+
+# Figure 4
+
+# Figure 5
+
+Culminating display of results, considerations:
+
+  * E-D relationships (heat, precip)
+  * Regions
+  * Seasons
+  * Lags (DLNM?)
+

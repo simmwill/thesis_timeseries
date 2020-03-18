@@ -1,5 +1,6 @@
 ---
-title: "Analytic Plan - ACToday Extreme Climate / Wasting Manuscript"
+title: "Analytic Plan"
+subtitle: "ACToday Extreme Climate-Wasting Manuscript"
 date: "4 March 2020"
 output: html_document
 editor_options: 
@@ -10,7 +11,369 @@ editor_options:
 
 This is a short overview of the planned ACToday research project investigating the association between extreme climate events and acute nutritional outcomes (weight-for-height, or wasting) in children under 5.
 
-What follows is a preliminary outline of current literature and gaps, and an analytic plan containing research questions, hypotheses, and statistical modelling considerations.
+What follows is an analytic plan containing research questions, hypotheses, and statistical modelling considerations. See Appendix for a preliminary outline of the Introduction section, including current state of the literature, gaps in knowledge, and biologically plausible pathways for relationships explored.
+
+&nbsp;
+
+#### *Analysis Plan*
+
+##### *Research Questions*
+
+  1. Do extreme climate events increase prevalence of wasting among children in Bangladesh? 
+    a. Extreme heat
+    b. Extreme precipitation
+  2. If so, are there lags that are important to these relationships?
+  3. Are there differential effects by region and/or season that should be accounted for?
+  
+##### *Hypotheses*
+
+  1. Extreme heat and extreme (high) precipitation will be positively associated with prevalence of under-5 wasting in Bangladesh.
+  2. Lag periods will differ for extreme heat and extreme precipitation.
+  3. Following previous research, there will be differential associations between climate and acute malnutrition by (a) region and (b) season.
+
+##### *Methods*
+
+Variables and measurements of interest:
+
+  * Exposures
+    + **Extreme Heat Exposure**
+      + Maximum and minimum daily temperatures above 95th percentile for 3+ consecutive days
+        + Each is a "heat wave", separated from other waves by at least one day
+      + Cumulative days with maximum and minimum temperature above 95th percentile
+        + Each is a "heat wave day" without respect to continuity of days
+      + Percentile definition: Xth percentile of daily values defined over all days between 1990 and 2006 for each subdistrict
+      + Nissan et al 2017
+    + **Extreme (High) Precipitation**
+      + At least preliminarily, use definition based on above: daily precipitation above 95th percentile 
+      + Cumulative days with precipitation over 95th percentile, without respect to continuity of days
+        + "Extreme precipitation days"
+      + Can also consider approach similar to Hashizume et al (2007/8) - explore relationship between precipitation and outcome using nonlinear methods, and if appropriate, create threshold at which risk increases both above/below
+        + e.g. for a 10mm decrease in precipitation (weekly, or another aggregate measure) below the X mm treshold, risk of wasting increased by X.XX
+        
+  * Outcome
+    + **Wasting**, defined as an individual's weight-for-height Z-score (WHZ) < -2 (more than 2 standard deviations below the reference mean)
+      + In a log-binomial model using cross-sectional data, the outcome (an exponentiated beta estimate) can be interpreted as the multiplicative increase in wasting prevalence given a 1-unit increase in the predictor, holding all other covariates constant (**prevalence ratio**)
+      + Can also back-calculate to observe the **prevalence difference** - absolute difference (additive) in prevalence given a 1-unit increase in the predictor, holding all other variables constant
+    
+  * Covariates
+    + **Geographic area** (subdistrict or larger)
+    + Month of year or **season** spline
+    + Year or **long-term-trend** spline
+
+Statistical Methods:
+
+  * Fit adjusted relative risk regression model (Zou 2004) to estimate association (prevalence ratio) between extreme climate events and wasting prevalence
+    + Considerations:
+      + Nonlinear relationships between exposures/covariates and outcome (use of piecewise functions, splines, etc.)
+      + Log-binomial vs. robust error variance via Poisson model with sandwich estimator (Chen et al 2018)
+  * Other options
+    + Poisson timeseries for count of wasting
+      + Scale: daily, weekly
+      + Zero-inflated? 
+      + Would need to be quasi-poisson or negative binomial given likely overdispersion (after comparing marginal mean and var)
+    + Case-crossover
+      + Similar in implementation and results as poisson timeseries if covariates are the same
+      + Advantages: confounding control built into model if correctly specified; able to test for effects of and effect modification by individual-level factors
+
+
+##### *Figures*
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(patchwork)
+library(gt)
+
+knitr::opts_knit$set(dev.args = list(type = "cairo"))
+options(scipen = 999)
+
+data = readRDS('./data/nsp_enacts_extreme')
+
+```
+
+
+Figure 1: Analysis Directed Acyclic Graph (DAG)
+<br><center> <img src="images/presentation_dag.png" style = "border:5px solid"> </center><br>
+
+```{r, fig.width = 12, fig.height = 6, echo = FALSE, message = FALSE, warning = FALSE}
+library(viridis)
+## density ridges
+
+# a = # for first 11
+# data %>% 
+#   group_by(area_name) %>% 
+#   mutate(area_zwfl = mean(zwfl)) %>% 
+#   ungroup() %>% 
+#   mutate(area_name = fct_reorder(area_name, desc(area_zwfl))) %>% 
+#   ggplot(aes(x = zwfl, y = area_name, fill = area_name)) +
+#   ggridges::geom_density_ridges(alpha = .4, scale = .7) +
+#   scale_fill_viridis(discrete = TRUE) +
+#   theme_bw() +
+#   theme(legend.position = "none")
+# 
+# b = # for second 11, then do a + b
+
+## boxplots
+library(tidyverse)
+data %>%
+  group_by(area_name) %>%
+  mutate(area_zwfl = median(zwfl)) %>%
+  ungroup() %>%
+  mutate(area_name = fct_reorder(area_name, area_zwfl)) %>%
+  ggplot(aes(x = area_name, y = zwfl, fill = area_name)) +
+  geom_histogram()
+  geom_boxplot(alpha = .4) +
+  scale_fill_viridis(discrete = TRUE) +
+  theme_bw() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 8, angle = 45, hjust = 1)) +
+  labs(x = "Area",
+       y = "WHZ",
+       title = "Figure 2: Weight-for-Height Z-score Distribution by Area")
+
+```
+
+```{r, fig.width = 12, fig.height = 6, echo = FALSE, message = FALSE, warning = FALSE}
+data %>% 
+  mutate(wasting = case_when(wasting == TRUE ~ "Wasting",
+                             wasting == FALSE ~ "No Wasting"),
+         wasting = as.factor(wasting)) %>% 
+  ggplot(aes(x = wasting, y = tmax, fill = wasting)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, color = "darkgrey", alpha = 0.2) +
+  labs(x = "Wasting Status",
+       y = "Maximum Temperature (C)",
+       title = "Figure 3: Daily Maximum Temperature Distribution by Wasting Status") +
+  stat_summary(fun.y = median, geom = "point", color = "darkred", size = 2) +
+  scale_fill_brewer(palette = 2) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+data %>% 
+  mutate(wasting = case_when(wasting == TRUE ~ "Wasting",
+                             wasting == FALSE ~ "No Wasting"),
+         wasting = as.factor(wasting)) %>% 
+  ggplot(aes(x = wasting, y = tmin, fill = wasting)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, color = "darkgrey", alpha = 0.2) +
+  labs(x = "Wasting Status",
+       y = "Minimum Temperature (C)",
+       title = "Figure 4: Daily Minimum Temperature Distribution by Wasting Status") +
+  stat_summary(fun.y = median, geom = "point", color = "darkred", size = 2) +
+  scale_fill_brewer(palette = 1) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+```
+
+
+```{r, fig.width = 12, fig.height = 6, echo = FALSE, message = FALSE, warning = FALSE}
+
+data %>% 
+  # filter(!(month %in% c(11, 12, 1, 2))) %>% 
+  group_by(surv_area, month, year) %>% 
+  mutate(precip_mo = mean(precip)) %>% 
+  ungroup() %>% 
+  mutate(wasting = case_when(wasting == TRUE ~ "Wasting",
+                             wasting == FALSE ~ "No Wasting"),
+         wasting = as.factor(wasting)) %>% 
+  ggplot(aes(x = wasting, y = precip_mo, fill = wasting)) +
+  geom_violin() +
+  geom_boxplot(width = 0.1, color = "darkgrey", alpha = 0.2) +
+  labs(x = "Wasting Status",
+       y = "Monthly Mean Precipitation (mm)",
+       title = "Figure 5: Monthly Mean Precipitation Distribution by Wasting Status",
+       caption = "Monthly mean precipitation used due to excess daily 0 values.") +
+  stat_summary(fun.y = median, geom = "point", color = "darkred", size = 2) +
+  scale_fill_brewer(palette = 4) +
+  theme_bw() +
+  theme(legend.position = "none")
+
+```
+
+```{r, fig.width = 12, fig.height = 6, echo = FALSE, message = FALSE, warning = FALSE}
+library(lubridate)
+library(mgcv)
+
+## time trend spaghetti plot
+data %>% 
+  mutate(month_year = lubridate::floor_date(dov, "month")) %>% 
+  group_by(area_name, surv_area, month_year) %>% 
+  summarize(wasting_month = mean(wasting)) %>% 
+  ungroup() %>% 
+ # mutate(surv_area = as.numeric(surv_area)) %>% 
+  ggplot(aes(x = month_year, y = wasting_month)) +
+  geom_point(size = .5, alpha = .5) +
+  ylim(0, 0.4) +
+  theme_bw() +
+  labs(x = "Month/Year",
+       y = "Monthly Wasting Prevalence",
+       title = "Figure 6: Monthly Wasting Prevalence, by Survey Area") +
+  
+  geom_smooth(method = gam, formula = y ~ s(x, k = 4), size = .1, alpha = .1) + ## penalized spline with 4 knots
+  
+  
+  facet_wrap(~area_name) 
+
+```
+
+##### *Remaining questions*
+
+  * Do we want to look at low-rainfall events too? Seems for shocks that high rainfall may be most important, but not sure
+  * What is the expected onset period for wasting following a causal event?
+    * Rapid onset of wasting - no specific timeframe given (WFP 2005)
+    * Rapid recovery - within 3 months (Rivera and Habicht 1996)
+  * Other pathways that are biologically plausible besides cholera/non-cholera diarrhea?
+  * Include holiday indicator as covariate (potential confounder)?
+  * Consider autocorrelations of time-series data?
+  
+
+```{r, eval = FALSE, echo = FALSE}
+library(tidyverse)
+library(knitr)
+library(kableExtra)
+library(patchwork)
+library(gt)
+library(logbin)
+library(geepack)
+
+data = readRDS('./data/nsp_enacts_extreme')
+```
+
+```{r, eval = FALSE, echo = FALSE}
+##### LOG-BINOMIAL #####
+set.seed(1)
+
+## crude temp model from summer work
+logbin_results_temp =
+  data %>% 
+  sample_frac(.5) %>% 
+  logbin(
+    data = .,
+    formula = wasting ~ temp_indicator,
+    method = 'em',
+    accelerate = 'squarem' # these two options speed the convergence
+  )
+
+## crude precip model from summer work
+logbin_results_precip =
+  data %>% 
+  sample_frac(.5) %>% 
+  logbin(
+    data = .,
+    formula = wasting ~ precip_indicator,
+    method = 'em',
+    accelerate = 'squarem' # these two options speed the convergence
+  )
+
+## adjusted temp model
+adj_logbin_results = 
+  data %>% 
+  sample_frac(.5) %>%  ## to speed convergence for now
+  logbin(
+    data = .,
+    formula = wasting ~ precip_indicator + temp_indicator
+      + surv_area + month + year,
+    method = 'em',
+    accelerate = 'squarem'
+  )
+
+  ## beta estimates: precip1 NS, temp1 0.0393 (p<0.0005), temp2 NS
+    ### beta est for temp1 smaller than robust poisson
+
+```
+
+```{r, eval = FALSE, echo = FALSE}
+##### ROBUST POISSON #####
+set.seed(1)
+
+## Common outcome: log link, poisson family, robust estimator (modified Poisson with robust estimator by Zou)
+sandwich_results_temp =
+  data %>% 
+  mutate(surv_area = as.numeric(surv_area),
+         id = 1:nrow(data)) %>% 
+  # arrange(surv_area, dov) %>% 
+  select(id, everything()) %>% 
+  sample_frac(0.5) %>% 
+  arrange(id) %>% 
+  geeglm(formula = wasting ~ temp_indicator,
+         data = .,
+         family = poisson(link = "log"),
+         id = id,
+         corstr = "exchangeable")
+
+  ## beta estimate for temp2 is quite a bit higher - logbin 0.294 vs. poisson 0.426
+  ## not using these indicators for publication, but need to look more into this
+
+sandwich_results_precip =
+  data %>% 
+  mutate(surv_area = as.numeric(surv_area),
+         id = 1:nrow(data)) %>% 
+  # arrange(surv_area, dov) %>% 
+  select(id, everything()) %>% 
+  sample_frac(0.5) %>% 
+  arrange(id) %>% 
+  geeglm(formula = wasting ~ precip_indicator,
+         data = .,
+         family = poisson(link = "log"),
+         id = id,
+         corstr = "exchangeable")
+
+  ## very similar to log-bin, but with larger SEs
+
+adj_sandwich_results =
+  data %>% 
+  mutate(surv_area = as.numeric(surv_area),
+         id = 1:nrow(data)) %>% 
+  # arrange(surv_area, dov) %>% 
+  select(id, everything()) %>% 
+  sample_frac(0.5) %>% 
+  arrange(id) %>% 
+  geeglm(formula = wasting ~ precip_indicator + temp_indicator
+                  + surv_area + month + year,
+         data = .,
+         family = poisson(link = "log"),
+         id = id,
+         corstr = "exchangeable")
+
+  ## beta estimates: precip1 NS, temp1 0.0634 (p<0.0001), temp2 NS
+    ### temp2 coefficient larger than in log-bin model
+
+```
+
+```{r, eval = FALSE, echo = FALSE}
+##### POISSON #####
+## if using count data
+## assessing overdisperson in data - daily counts divided by daily surveyed, by area
+
+data %>% 
+  group_by(dov, surv_area) %>% 
+  summarize(cases = sum(wasting),
+            offset = n(),
+            rate = cases/offset) %>% 
+  filter(offset > 9) %>% 
+  mutate(surv_area = as.numeric(surv_area)) %>% 
+  arrange(surv_area, dov) %>% 
+  ggplot(aes(x = dov, y = rate)) +
+  geom_point(size = .1, alpha = .1) +
+  facet_wrap(~surv_area)
+
+  ## 44,907 area-days for all offsets
+  ## 32,223 area-days for offset >= 10
+
+  ## assessing overdispersion (roughly) by comparing marginal mean to marginal variance of outcome rate, by area (for this to be accurate, would need to compare conditional outcomes, but not possible - this is decent proxy)
+  ungroup() %>% 
+  group_by(surv_area) %>% 
+  summarize(mean = mean(rate),
+            var = var(rate)
+  ) %>% view
+
+  ## quite overdispersed in all areas, with means around ~0.14 and variances around ~0.014
+
+## if we're doing timeseries, would need to use quasi-likelihood
+```
+
 
 #### *Introduction - Outline*
 
@@ -74,181 +437,45 @@ failures, which in turn affect nutrition
       + Proposed explanations:
         + precipitation --> contaminated runoff, water quality, environmental contact with pathogens --> non-cholera diarrhea --> wasting (Singh et al 2001, Hashizume et al 2007, Mertens et al 2019)
         + precipitation --> river level? --> seasonal cholera --> diarrhea/immunocompromised --> wasting (Hashizume et al 2008/2010)
-  
-#### *Analysis Plan*
-
-##### *Research Questions*
-
-  1. Do extreme climate events increase prevalence of wasting among children in Bangladesh? 
-    a. Extreme heat
-    b. Extreme precipitation
-  2. If so, are there lags that are important to these relationships?
-  3. Are there differential effects by region and/or season that should be accounted for?
-  
-##### *Hypotheses*
-
-  1. Extreme heat and extreme (high) precipitation will be positively associated with prevalence of under-5 wasting in Bangladesh.
-  2. Lag periods will differ for extreme heat and extreme precipitation.
-  3. Following previous research, there will be differential associations between climate and acute malnutrition by (a) region and (b) season.
-
-##### *Methods*
-
-Variables of interest:
-
-  * Exposures
-    + **Extreme Heat Exposure**
-      + Maximum and minimum daily temperatures above 95th percentile for 3+ consecutive days
-        + Each is a "heat wave", separated from other waves by at least one day
-      + Cumulative days with maximum and minimum temperature above 95th percentile
-        + Each is a "heat wave day" without respect to continuity of days
-      + Percentile definition: Xth percentile of daily values defined over all days between 1990 and 2006 for each subdistrict
-      + Nissan et al 2017
-    + **Extreme (High) Precipitation**
-      + At least preliminarily, use definition based on above: daily precipitation above 95th percentile 
-      + Cumulative days with precipitation over 95th percentile, without respect to continuity of days
-        + "Extreme precipitation days"
-      + Can also consider approach similar to Hashizume et al (2007/8) - explore relationship between precipitation and outcome using nonlinear methods, and if appropriate, create threshold at which risk increases both above/below
-        + e.g. for a 10mm decrease in precipitation (weekly, or another aggregate measure) below the X mm treshold, risk of wasting increased by X.XX
         
-  * Outcome
-    + **Wasting**, defined as an individual's weight-for-height Z-score (WHZ) < -2 (more than 2 standard deviations below the reference mean)
-      + In a log-binomial model using cross-sectional data, the outcome (an exponentiated beta estimate) can be interpreted as the multiplicative increase in wasting prevalence given a 1-unit increase in the predictor, holding all other covariates constant (**prevalence ratio**)
-      + Can also back-calculate to observe the **prevalence difference** - absolute difference (additive) in prevalence given a 1-unit increase in the predictor, holding all other variables constant
+        
+# Next Steps 03/04/2020
+
+  * Reaching out to Melody x
+  * IRB stuff?
+    + Who will be PI?
+    + Get in touch with Matt - remain on the IRB***
+  * Confirm data with HKI
+  * Author
+    + Me
+    + Hannah (last)
+    + Matt?
+    + Shauna
+    + Robbie
+    + Walter
+    + Jillian?
+  * Journals
+    + Med
+      + Lancet Planetary Health (new)
+      + Lancet Climate Change? Maybe not
+    + Epi/Env
+      + EHP
+      + EE
+    + Epidemiology
+      + Epi
+      + AJE
+    + Nutrition?
+      + AJCN / EJCN?
+      + 
+
+  * Explore data:
+    + Differential effects by region
+    + Differential effects by season
     
-  * Covariates
-    + **Geographic area** (subdistrict or larger)
-    + Month of year or **season** spline
-    + Year or **long-term-trend** spline
-
-Statistical Methods:
-
-  * 
-
-
-##### *Figures*
-
-```{r}
-library(tidyverse)
-library(knitr)
-library(kableExtra)
-library(patchwork)
-library(gt)
-
-knitr::opts_knit$set(dev.args = list(type = "cairo"))
-
-data = readRDS('./data/nsp_enacts_extreme')
-
-```
-
-
-Figure 1: Analysis Directed Acyclic Graph (DAG)
-<br><center> <img src="images/presentation_dag.png" style = "border:5px solid"> </center><br>
-
-```{r, fig.width = 12}
-data %>% 
-  mutate(wasting = case_when(wasting == TRUE ~ "Wasting",
-                             wasting == FALSE ~ "No Wasting"),
-         wasting = as.factor(wasting)) %>% 
-  ggplot(aes(x = wasting, y = tmax, fill = wasting)) +
-  geom_violin() +
-  geom_boxplot(width = 0.1, color = "darkgrey", alpha = 0.2) +
-  labs(x = "Wasting Status",
-       y = "Maximum Temperature (C)",
-       title = "Figure 2: Daily Maximum Temperature Distribution by Wasting Status") +
-  stat_summary(fun.y = median, geom = "point", color = "darkred", size = 2) +
-  scale_fill_brewer(palette = 2) +
-  theme_bw() +
-  theme(legend.position = "none")
-
-data %>% 
-  mutate(wasting = case_when(wasting == TRUE ~ "Wasting",
-                             wasting == FALSE ~ "No Wasting"),
-         wasting = as.factor(wasting)) %>% 
-  ggplot(aes(x = wasting, y = tmin, fill = wasting)) +
-  geom_violin() +
-  geom_boxplot(width = 0.1, color = "darkgrey", alpha = 0.2) +
-  labs(x = "Wasting Status",
-       y = "Minimum Temperature (C)",
-       title = "Figure 3: Daily Minimum Temperature Distribution by Wasting Status") +
-  stat_summary(fun.y = median, geom = "point", color = "darkred", size = 2) +
-  scale_fill_brewer(palette = 1) +
-  theme_bw() +
-  theme(legend.position = "none")
-
-```
-
-Figure 3: Crude relationship between precipitation and wasting (daily scales)
-
-```{r, fig.width = 12}
-
-data %>% 
-  # filter(!(month %in% c(11, 12, 1, 2))) %>% 
-  group_by(surv_area, month, year) %>% 
-  mutate(precip_mo = mean(precip)) %>% 
-  ungroup() %>% 
-  mutate(wasting = case_when(wasting == TRUE ~ "Wasting",
-                             wasting == FALSE ~ "No Wasting"),
-         wasting = as.factor(wasting)) %>% 
-  ggplot(aes(x = wasting, y = precip_mo, fill = wasting)) +
-  geom_violin() +
-  geom_boxplot(width = 0.1, color = "darkgrey", alpha = 0.2) +
-  labs(x = "Wasting Status",
-       y = "Monthly Mean Precipitation (mm)",
-       title = "Figure 4: Monthly Mean Precipitation Distribution by Wasting Status",
-       caption = "Monthly mean precipitation used due to excess daily 0 values.") +
-  stat_summary(fun.y = median, geom = "point", color = "darkred", size = 2) +
-  scale_fill_brewer(palette = 4) +
-  theme_bw() +
-  theme(legend.position = "none")
-
-```
-
-```{r, fig.width = 12}
-library(lubridate)
-library(mgcv)
-
-## time trend spaghetti plot
-data %>% 
-  mutate(month_year = lubridate::floor_date(dov, "month")) %>% 
-  group_by(area_name, surv_area, month_year) %>% 
-  summarize(wasting_month = mean(wasting)) %>% 
-  ungroup() %>% 
- # mutate(surv_area = as.numeric(surv_area)) %>% 
-  ggplot(aes(x = month_year, y = wasting_month)) +
-  geom_point(size = .5, alpha = .5) +
-  ylim(0, 0.4) +
-  theme_bw() +
-  labs(x = "Month/Year",
-       y = "Monthly Wasting Prevalence",
-       title = "Figure 5: Monthly Wasting Prevalence, by Survey Area") +
-  
-  geom_smooth(method = gam, formula = y ~ s(x, k = 4), size = .1, alpha = .1) + ## penalized spline with 4 knots
-  
-  
-  facet_wrap(~area_name) 
-
-```
-
-##### *Remaining questions*
-
-  * Do we want to look at low-rainfall events too? Seems for shocks that high rainfall may be most important, but not sure
-  * What is the expected onset period for wasting following a causal event?
-    * Rapid onset of wasting - no specific timeframe given (WFP 2005)
-    * Rapid recovery - within 3 months (Rivera and Habicht 1996)
-  * Other pathways that are biologically plausible besides cholera/non-cholera diarrhea?
-  
-
-```{r, echo = FALSE}
-library(tidyverse)
-library(knitr)
-library(kableExtra)
-library(patchwork)
-library(gt)
-
-data = readRDS('./data/nsp_enacts_extreme')
-```
-
-```{r}
-
-```
-
+  * Sabine Gab... with Waid - publication in Lancet Planetary Health
+  * Think about 4-5 to present results
+    + Map - exposure and outcome-based
+    + Fourier plots? 
+      + To address long-term trend, normalize by year? 
+    + Figures 4-5: some sort of display of results
+    + Look at Robbie's Figure 1-2 with mortality across different years
