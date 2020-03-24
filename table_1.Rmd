@@ -1,0 +1,545 @@
+---
+title: "Table 1"
+author: "Will Simmons"
+date: "3/18/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+First, I need to join an administrative dataset with our current data to create variables for level 0 (nation), 1 (division), 2 (district). I currently have level 3 (upazila).
+
+```{r}
+
+library(conflicted)
+library(tidyverse)
+library(readr)
+
+library(Cairo)
+library(gtsummary)
+library(gt)
+library(knitr)
+library(kableExtra)
+library(Hmisc) # for variable labels
+library(rlang)
+library(ggridges)
+
+data = readRDS('./data/nsp_enacts_extreme')
+
+bgd_geo = read_csv('./data/BGD_adm3.csv')
+
+data_week = readRDS('./data/weekly_data.RDS')         # 642,205 obs - removed Feb 29 observations for simplicity in week analyses
+
+```
+
+Let's look at the upazila columns of each, since that's how I'll be joining the tables once they're shaped up
+
+```{r}
+# Expanding paired names into separate cells
+nsp_names = 
+  data %>% 
+  select(surv_area, area_name) %>% 
+  # mutate(
+  #   area_name = as.character(area_name)
+  # ) %>% 
+  separate(area_name,
+           into = c("upazila_1", "upazila_2"),
+           sep = "/") %>% 
+  unique() %>% 
+  pivot_longer(
+    upazila_1:upazila_2,
+    names_to = 'remove',
+    values_to = 'upazila'
+  ) %>% 
+  select(-remove) # You WILL get error message - ignore (some "paired" areas only had one area)
+
+
+geo_names =
+  bgd_geo %>% 
+  select(
+    division = NAME_1,
+      division_id = ID_1,
+    district = NAME_2,
+      district_id = ID_2,
+    upazila = NAME_3,
+      upazila_id = ID_3
+  )
+
+# Joining 
+joined = 
+  left_join(
+    nsp_names,
+    geo_names
+  ) %>% 
+  arrange(as.numeric(surv_area))
+
+# Which names don't work?
+  # Pairing with likely names from administrative dataset (geo_names)
+wrong_names =
+  joined %>% 
+  filter(is.na(division),
+         !is.na(upazila)) %>% 
+  select(surv_area, upazila) %>% 
+  mutate(
+    likely_name = c(
+      "Sakhipur",
+      "Sirajdikhan",
+      "Patuakhali S.",
+      "Maheshkhali",
+      "Cox Bazar S",
+      "Naogaon S.",
+      "Golabganj",
+      "Chauddagram",
+      "Jamalpur S.",
+      "Patharghata",
+      "Charfasson",
+      "Lalmohan"
+    )
+  )
+
+# Substitute these names into nsp_names
+nsp_names_new =  
+  left_join(
+  nsp_names,
+  wrong_names
+) %>% 
+  mutate(
+    new_name = case_when(
+      !is.na(likely_name) ~ likely_name,
+      is.na(likely_name) ~ upazila
+    )
+  ) %>% 
+  select(surv_area, new_name, old_name = upazila, likely_name)
+
+# Join again with correct names
+joined_new =
+  left_join(
+    nsp_names_new,
+    geo_names,
+    by = c("new_name" = "upazila")
+  ) %>% 
+  drop_na(new_name) %>% 
+  rename(upazila = new_name) %>% 
+  select(surv_area, starts_with('upazila'), starts_with('district'), starts_with('division'), everything(), -old_name, -likely_name)
+
+# Now to deal with duplicates - which upazila names are duplicated (i.e. same upazila name but different regions)?
+joined_new %>%
+  filter(
+    duplicated(upazila,
+               fromLast = TRUE) |   # Weird code to access all duplicates
+    duplicated(upazila)
+  )
+# DUPLICATES
+  # Pirganj - Rongpur or Thakurgaon DISTRICT?
+    ## Thakurgaon
+  # Sreepur - Dhaka or Khulna DIVISION?
+    ## Dhaka division
+  # Kaliganj - Dhaka, Khulna, or Rangpur DIVISION? If Khulna division, Jhenaidah or Shatkhira DISTRICT?
+    ## Khulna division, Jhenaidah district
+  # Daulatpur - Dhaka or Khulna DIVISION?
+    ## Khulna division
+
+# Final key
+geography_key =
+  joined_new %>% 
+  filter(
+    !(upazila_id %in% c(421, 291, 143, 301, 402, 175))
+  ) #%>% 
+  # saveRDS('./data/geography_key.RDS')
+
+```
+
+```{r}
+# Clean up
+rm(
+  bgd_geo,
+  geo_names,
+  joined,
+  joined_new,
+  nsp_names,
+  nsp_names_new,
+  wrong_names
+)
+```
+
+Now that names are sorted - starting Table 1
+    
+#### 1. Create Table 1 data
+
+```{r}
+# Adding Division (highest admin. level - 6 divisions) to table
+  # Level below Division (District) is often split across paired Upazilas (e.g. Upazila pair 5 - Chilmari/Kaunia - across two Districts)
+  # Any geographic aggregation will be done at the paired Upazila, paired District, or Division level
+table_1_data_pre = 
+  geography_key %>% 
+  select(-upazila, -upazila_id,
+         -district, -district_id) %>% 
+  unique() %>% 
+  right_join(
+    .,
+    data_week,
+    by = c("surv_area", "division", "division_id")
+  ) 
+
+rm(data, data_week)
+
+```
+
+Let's look at wasting by Division, just to make sure everything looks okay:
+
+```{r}
+# CairoWin()
+# Boxplots by Division
+table_1_data_pre %>%
+  group_by(division) %>%
+  mutate(division_zwfl = median(zwfl)) %>%
+  ungroup() %>%
+  mutate(division = fct_reorder(division, division_zwfl)) %>%
+  ggplot(aes(x = division, y = zwfl, fill = division)) +
+  geom_violin(alpha = .4) +
+  stat_summary(fun.y = median, geom = "point", color = "IndianRed", size = 2) +
+  scale_fill_viridis(discrete = TRUE) +
+  theme_bw() +
+  theme(legend.position = "none",
+        axis.text.x = element_text(size = 8, angle = 45, hjust = 1)) +
+  labs(x = "Division",
+       y = "WHZ",
+       title = "Figure: Weight-for-Height Z-score Distribution by Administrative Division",
+       caption = "\nMedian (red dot) is just a tiny bit higher in the rightmost plots (Rangpur: -0.98 vs. Barisal: -1.06)")
+
+```
+
+#### 2. Create Table 1
+
+Rows: 
+  * Division 
+    + 1 of 6
+  * Age categories
+    + <1 year
+    + 1-2 years
+    + etc.
+  * Same-week heat wave exposure
+    + Yes/No
+  * Same-week heat wave day exposure
+    + 0 days
+    + 1 day
+    + 2 days
+    + etc.
+  * Same-week extreme precipitation exposure
+    + Yes/No
+  * Same-week extreme precipitation days
+    + 0 days
+    + 1 day
+    + 2 days
+    + etc.
+  
+Columns:
+  * No Wasting (n = .)
+  * Wasting (n = .)
+  * Year
+    + If table can fit it (17 years * 2 wasting indices = 34 columns, plus space for row labels)
+    + Update: this is difficult with the current table packages available (can show in a timeseries plot)
+    
+```{r}
+# Creating new percentiles from ENACTS data (CANNOT use paired NSP-ENACTS data! Need one climate obs per day, not multiple obs)
+enacts = readRDS(file = './data/enacts')
+
+climate_95_pctiles =
+  geography_key %>% 
+  select(-upazila, -upazila_id,
+         -district, -district_id) %>% 
+  unique() %>% 
+  right_join(
+    .,
+    enacts,
+    by = "surv_area"
+  ) %>% 
+  group_by(surv_area) %>% 
+  mutate(p_95_area = quantile(precip, probs = 0.95),
+            tmax_95_area = quantile(tmax, probs = 0.95),
+            tmin_95_area = quantile(tmin, probs = 0.95)
+  ) %>% 
+  ungroup() %>% 
+  group_by(division) %>% 
+  mutate(p_95_division = quantile(precip, probs = 0.95),
+         tmax_95_division = quantile(tmax, probs = 0.95),
+         tmin_95_division = quantile(tmin, probs = 0.95)
+  ) %>% 
+  ungroup()
+  # ***** create heat wave indicator here
+
+#table_1_data =
+  table_1_data_pre %>% 
+  
+  # Getting rid of old climate vars
+  select(
+    -extr_p, -extr_t,
+    -starts_with("matlab"),                       # Removing MATLAB percentile variables
+    -p_last_30, -t_last_30,                       # Not looking at 30-day windows
+    -ends_with("indicator"),                      # Not looking at 30-day windows (these indicated whether in last 30 days)
+    -ends_with("_95")
+  ) %>% 
+  
+  # Joining with new ones
+  left_join(
+    .,
+    climate_95_pctiles
+  ) %>% 
+    
+  mutate_at(
+    c("division", "division_id"),
+    ~as.factor(.)
+  ) %>%
+  mutate(
+    control = !wasting,
+    agemos = (ageindays / 30.4375),               # Avg of 365.25/12 days in each month = 30.4375
+    agemos_cat = case_when(agemos < 12 ~ "6-11",
+                           agemos < 24 ~ "12-23",
+                           agemos < 36 ~ "24-35",
+                           agemos < 48 ~ "36-47",
+                           agemos < 60 ~ "48-60"),
+    agemos_cat = as.factor(agemos_cat),
+    agemos_cat = fct_reorder(agemos_cat, agemos),
+    
+    # New climate variables - BY SURVEY AREA
+    extr_p_area = case_when(
+      precip > p_95_area ~ '1',
+      precip <= p_95_area ~ '0'
+    ),
+    extr_t_area = case_when(
+      tmax > tmax_95_area & tmin > tmin_95_area ~ '1',           # Nissan et al paper - tmax and tmin above 95th percentile
+      TRUE ~ '0'
+    ),
+    extr_p_area = as.logical(as.numeric(extr_p_area)),
+    extr_t_area = as.logical(as.numeric(extr_t_area))
+  ) %>% 
+    
+  # Week-based climate measures
+  
+  
+  
+  ## NOTES
+    # p_95_area = area-specific precip threshold (95th %ile) across span of data for area
+    # tmax_95_area = area-specific temp threshold (95th %ile) across span of data for area
+    # tmin_95_area
+    # extr_p_area = indicator 1/0 of extreme precip by 95th %ile 
+    # extr_t_area = indicator 1/0 of extreme temp by 95th %ile (tmax and tmin)
+```
+
+Creating functions needed for Table 1
+
+```{r, run_this}
+
+# Table 1 - create rows irrespective of year
+table_one = function(outcome, covariate) {
+  
+  table_1_data %>% 
+  select({{ outcome }}, {{ covariate }}) %>% 
+  filter({{ outcome }} == TRUE) %>% 
+  select({{ covariate }}) %>% tbl_summary()
+  
+  # create individual tables
+  # output a list of tables to then feed into tbl_merge
+  
+}
+
+# # Testing table_one()
+# table_one(control, division)
+
+# Merge columns of single row
+merge_table_ones = function(covariate) {
+  
+  table_ones = list(
+    table_one(wasting, {{ covariate }}),
+    table_one(control, {{ covariate }})
+  )
+  
+  tab_list = list("**Wasting**", "**No wasting**")
+    
+  # Output merged table
+  tbl_merge(table_ones, tab_spanner = tab_list) 
+  
+}
+
+# # Testing merge_table_ones()
+# label(table_1_data$division) = "Division"
+# merge_table_ones(division)
+
+```
+
+Idea: creating columns across years (won't work with existing packages...)
+
+```{r, unused}
+### Unused ####
+# table_one_year = function(outcome, covariate, analysis_year) {
+#   
+#   table_1_data %>% 
+#     mutate(year = as.numeric(as.character(year))) %>%
+#     filter(year == as.numeric(analysis_year)) %>%
+#     mutate(wasting = as.factor(wasting),
+#            wasting = fct_recode(wasting, "No Wasting" = "FALSE", "Wasting" = "TRUE")) %>% 
+#     select({{ outcome }}, {{ covariate }}) %>% 
+#     # filter({{ outcome }} == TRUE) %>%
+#     # select({{ covariate }}) %>%
+#     tbl_summary() # %>% 
+#     # tab_spanner(label = paste0(analysis_year))           # Going to have to do this within tbl_merge() of all years
+#     
+#   
+# }
+# 
+# # Testing table_one_year
+# table_one_year(wasting, division, 1990)
+# table_one_year(wasting, division, 1991)
+# 
+# tbl_merge(list(a, b), tab_spanner = list("**1990**", "**1991**"))
+# 
+# merge_table_ones_years = function(covariate) {
+#   
+#   table_ones_years = list(
+#     table_one(wasting, {{ covariate }}),
+#     table_one(control, {{ covariate }})
+#   )
+#   
+#   tab_list = list("**Wasting**", "**No wasting**")
+#     
+#   # Output merged table
+#   tbl_merge(table_ones, tab_spanner = tab_list) 
+#   
+# }
+### Unused 3/23 ####
+
+# Table 1 - create rows by year
+# table_one_year = function(outcome, covariate, analysis_year) {
+#   
+#   table_1_data %>% 
+#     mutate(year = as.numeric(as.character(year))) %>%
+#     filter(year == as.numeric(analysis_year)) %>%
+#     select({{ outcome }}, {{ covariate }}) %>% 
+#     filter({{ outcome }} == TRUE) %>% 
+#     select({{ covariate }}) %>% tbl_summary()
+#   
+#   # create individual tables
+#   # map into list of tables by year, then feed into tbl_merge()
+#   
+# }
+# 
+# # Merge columns of single row
+# merge_table_ones_year = function(covariate, analysis_year) {
+#   
+#   list(
+#     table_one_year(wasting, !!sym(covariate), analysis_year),
+#     table_one_year(control, !!sym(covariate), analysis_year)
+#   )
+#   
+# }
+# 
+# # # Testing merge_table_ones_year()
+# # merge_table_ones_year('division', 1991)
+# 
+# # Mapping year range over merge_table_ones_year()
+# tbl_list_division = 
+#   map2('division', 1990:2006, merge_table_ones_year) %>% 
+#   unlist(recursive = FALSE)                                     ## Turns list of lists into one list
+#   # This is a list of 34 tables, 2 for each of 17 years
+# 
+# # Mapping year range over extr_t as an example to stack below
+# tbl_list_extr_t =
+#   map2('extr_t', 1990:2006, merge_table_ones_year) %>% 
+#   unlist(recursive = FALSE)
+# 
+# tab_list = list("**Wasting**", "**No wasting**")
+# tab_list_expand = rep(tab_list, 17)
+# a = tbl_merge(tbl_list_division, tab_spanner = test)
+# b = tbl_merge(tbl_list_extr_t, tab_spanner = test)
+# 
+# tbl_stack(list(a,b))
+#     
+#   # Output merged table
+#   tbl_merge(table_ones, tab_spanner = tab_list)
+# 
+# 
+# # Making list of years
+# years = as.character(1990:2006)
+# 
+# tbl_merge(
+#   tbl_list_division,
+#   tab_spanner = years
+# )
+
+
+```
+
+Creating individiual Table 1 rows
+
+```{r}
+
+# Division
+
+label(table_1_data$division) = "Division"
+division_table =
+  merge_table_ones(division)
+
+```
+
+```{r}
+
+# Age in months
+
+label(table_1_data$agemos_cat) = "Age in months"
+age_table =
+  merge_table_ones(agemos_cat)
+
+```
+
+```{r}
+
+# Same-week heat wave exposure (95%ile for tmax AND tmin for 3+ days)
+
+# Need to create weekly heat indicators and weekly dataset
+  # This will be:
+    # Yes (#, %)
+    # No (#, %)
+
+```
+
+
+```{r}
+
+# Same-week heat wave DAY exposure (95%ile for tmax AND tmin for one day, regardless of continuity)
+
+# Need to create weekly heat indicators and weekly dataset
+  # This will be:
+    # 0 days (#, %)
+    # 1 day (#, %)
+    # 2 days (#, %)
+    # etc.
+
+```
+
+```{r}
+
+# Same-week extreme precipitation exposure (95%ile for precip for one day, regardless of continuity)
+
+# Need to create weekly heat indicators and weekly dataset
+  # This will be:
+    # 0 days (#, %)
+    # 1 day (#, %)
+    # 2 days (#, %)
+    # etc.
+
+```
+
+Next steps:
+
+  * Create weekly dataset with weekly exposure counts
+  * Add to Table 1 rows
+    + Merge Table 1
+  * Start on figures
+    + Timeseries of survey count, outcome, exposure, etc. by time/Division
+    + Look in 'to_do.txt', 'sample_and_prelim_figs.Rmd', and 'analytic_plan_manuscript.Rmd' for ideas on figures
+    
+  * Create heat wave (3+ days) variable using enacts.RDS (go here *****)
+  * Weekly climate measures:
+    + Same-week heat wave
+    + Same-week # extreme heat days
+    + Same-week # extreme precipitation days

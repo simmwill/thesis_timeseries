@@ -28,8 +28,8 @@ What follows is an analytic plan containing research questions, hypotheses, and 
 ##### *Hypotheses*
 
   1. Extreme heat and extreme (high) precipitation will be positively associated with prevalence of under-5 wasting in Bangladesh.
-  2. Lag periods will differ for extreme heat and extreme precipitation.
-  3. Following previous research, there will be differential associations between climate and acute malnutrition by (a) region and (b) season.
+  2. Lag periods will differ for extreme heat and extreme precipitation, but will be important for each exposure-outcome association.
+  3. There will be differential associations between climate and acute malnutrition by (a) region and (b) season.
 
 ##### *Methods*
 
@@ -47,33 +47,49 @@ Variables and measurements of interest:
       + At least preliminarily, use definition based on above: daily precipitation above 95th percentile 
       + Cumulative days with precipitation over 95th percentile, without respect to continuity of days
         + "Extreme precipitation days"
-      + Can also consider approach similar to Hashizume et al (2007/8) - explore relationship between precipitation and outcome using nonlinear methods, and if appropriate, create threshold at which risk increases both above/below
-        + e.g. for a 10mm decrease in precipitation (weekly, or another aggregate measure) below the X mm treshold, risk of wasting increased by X.XX
+      + Other considerations:
+        + Explore relationship between precipitation and outcome using nonlinear methods
+        + Approach similar to Hashizume et al (2007/8) threshold at which risk increases both above/below
+          + e.g. for a 10mm decrease in precipitation (weekly, or another aggregate measure) below the X mm treshold, risk of wasting increased by X.XX
         
   * Outcome
     + **Wasting**, defined as an individual's weight-for-height Z-score (WHZ) < -2 (more than 2 standard deviations below the reference mean)
-      + In a log-binomial model using cross-sectional data, the outcome (an exponentiated beta estimate) can be interpreted as the multiplicative increase in wasting prevalence given a 1-unit increase in the predictor, holding all other covariates constant (**prevalence ratio**)
+      + In a Poisson model using repeated cross-sectional survey data, outcome (an exponentiated beta estimate) can be interpreted as the multiplicative increase in wasting prevalence given a 1-unit increase in the predictor, holding all other covariates constant (**prevalence ratio**)
+        + This is similar in a log-binomial model
       + Can also back-calculate to observe the **prevalence difference** - absolute difference (additive) in prevalence given a 1-unit increase in the predictor, holding all other variables constant
+        + Cross-sectional data allows calculation of conditional probability of disease given exposure status
     
   * Covariates
     + **Geographic area** (subdistrict or larger)
-    + Month of year or **season** spline
-    + Year or **long-term-trend** spline
+    + Month of year or **season** term (e.g. spline)
+    + Year or **long-term-trend** (e.g. spline)
 
 Statistical Methods:
 
-  * Fit adjusted relative risk regression model (Zou 2004) to estimate association (prevalence ratio) between extreme climate events and wasting prevalence
-    + Considerations:
-      + Nonlinear relationships between exposures/covariates and outcome (use of piecewise functions, splines, etc.)
-      + Log-binomial vs. robust error variance via Poisson model with sandwich estimator (Chen et al 2018)
-  * Other options
-    + Poisson timeseries for count of wasting
-      + Scale: daily, weekly
-      + Zero-inflated? 
-      + Would need to be quasi-poisson or negative binomial given likely overdispersion (after comparing marginal mean and var)
-    + Case-crossover
-      + Similar in implementation and results as poisson timeseries if covariates are the same
-      + Advantages: confounding control built into model if correctly specified; able to test for effects of and effect modification by individual-level factors
+  * Fit **adjusted weekly time series model** to estimate association (prevalence ratio) between weekly measures of extreme climate and weekly wasting prevalence
+  * Considerations:
+    + **Nonlinear** associations between exposures/covariates and outcome (use of piecewise functions, splines, etc.)
+    + **Lags** of exposure-outcome associations (use of Distributed Lag Nonlinear Models, see works by Gasparrini)
+    + Need for adjustment of **overdispersion**, if present in Poisson model (use of quasi-Poisson or negative binomial)
+    + **Zero inflation** in count data (use of zero-inflated Poisson or zero-inflated negative binomial models)
+  
+  
+<!--
+# Old Statistical Methods
+
+  # * Fit adjusted relative risk regression model (Zou 2004) to estimate association (prevalence ratio) between extreme climate events and wasting prevalence
+  #   + Considerations:
+  #     + Nonlinear relationships between exposures/covariates and outcome (use of piecewise functions, splines, etc.)
+  #     + Log-binomial vs. robust error variance via Poisson model with sandwich estimator (Chen et al 2018)
+  # * Other options
+  #   + Poisson timeseries for count of wasting
+  #     + Scale: daily, weekly
+  #     + Zero-inflated? 
+  #     + Would need to be quasi-poisson or negative binomial given likely overdispersion (after comparing marginal mean and var)
+  #   + Case-crossover
+  #     + Similar in implementation and results as poisson timeseries if covariates are the same
+  #     + Advantages: confounding control built into model if correctly specified; able to test for effects of and effect modification by individual-level factors
+-->
 
 
 ##### *Figures*
@@ -84,6 +100,7 @@ library(knitr)
 library(kableExtra)
 library(patchwork)
 library(gt)
+library(viridis)
 
 knitr::opts_knit$set(dev.args = list(type = "cairo"))
 options(scipen = 999)
@@ -97,7 +114,6 @@ Figure 1: Analysis Directed Acyclic Graph (DAG)
 <br><center> <img src="images/presentation_dag.png" style = "border:5px solid"> </center><br>
 
 ```{r, fig.width = 12, fig.height = 6, echo = FALSE, message = FALSE, warning = FALSE}
-library(viridis)
 ## density ridges
 
 # a = # for first 11
@@ -115,14 +131,12 @@ library(viridis)
 # b = # for second 11, then do a + b
 
 ## boxplots
-library(tidyverse)
 data %>%
   group_by(area_name) %>%
   mutate(area_zwfl = median(zwfl)) %>%
   ungroup() %>%
   mutate(area_name = fct_reorder(area_name, area_zwfl)) %>%
   ggplot(aes(x = area_name, y = zwfl, fill = area_name)) +
-  geom_histogram()
   geom_boxplot(alpha = .4) +
   scale_fill_viridis(discrete = TRUE) +
   theme_bw() +

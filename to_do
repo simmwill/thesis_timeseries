@@ -1,26 +1,37 @@
+###################################################################################################################################
+############################################################# QUESTIONS ############################################################
+###################################################################################################################################
 
+  * Is there an updated ENACTS dataset? (Ask Robbie and/or Simon)
+  * Climate percentile by:
+    + Geography:
+      + surv_area?
+      + Division?
+    + Time?
+      + Year?
+      + Season?
+  * Have geography as covariate in model? Just stratify?
+    + Would lose variability by including in model?
+    + Would bias/redundant by including something already accounted for in percentiles?
 
 ###################################################################################################################################
 ############################################################## TO DO ##############################################################
 ###################################################################################################################################
-
-# Next Steps 02/20/2020 ##############################################################
-
-  * Add district and division names to dataset for each upazila
   
-                ## ADDING DISTRICTS 03/02/2020
-              # data %>% 
-              # mutate(
-              #   district = case_when(area_name %in% c("Pirganj") ~ "Thakurgaon",
-              #                        area_name %in% c())
-              # ) %>% 
+# Next Steps 03/18/2020 ##############################################################
+
+  * x Add district and division names to dataset for each upazila DONE
+  * Table 1 using thesis code
+  * Follow up with Rahul again
   
 # Next Steps 03/04/2020 ##############################################################
 
   * Reach out to Melody to see if anyone at HKI can confirm our data use ability x
-  * IRB stuff?
-    + Who will be PI?
-    + Get in touch with Matt - remain on the IRB***
+  * IRB stuff? x
+    + Who will be PI? x
+    + Get in touch with Matt - remain on the IRB*** x
+    + Put Robbie and Shauna on IRB protocol
+      + Added Robbie; looks like I can't add Shauna since doesn't have a UNI
   * Confirm data with HKI
   * Author
     + Me
@@ -55,3 +66,6 @@
       + To address long-term trend, normalize by year? 
     + Timeseries?
     + Look at Robbie's Figure 1-2 with mortality across different years
+    
+
+    
