@@ -11,7 +11,6 @@ First, I need to join an administrative dataset with our current data to create 
 
 ```{r}
 
-library(conflicted)
 library(tidyverse)
 library(readr)
 
@@ -23,12 +22,19 @@ library(kableExtra)
 library(Hmisc) # for variable labels
 library(rlang)
 library(ggridges)
+library(viridis)
+
+library(conflicted)
+conflict_prefer('filter', 'dplyr')
+conflict_prefer("summarize", "dplyr")
+conflict_prefer("lag", "dplyr")
 
 data = readRDS('./data/nsp_enacts_extreme')
 
 bgd_geo = read_csv('./data/BGD_adm3.csv')
 
 data_week = readRDS('./data/weekly_data.RDS')         # 642,205 obs - removed Feb 29 observations for simplicity in week analyses
+                                                          # 717 observations on Feb 29 across years
 
 ```
 
@@ -181,7 +187,7 @@ table_1_data_pre =
     by = c("surv_area", "division", "division_id")
   ) 
 
-rm(data, data_week)
+rm(data)
 
 ```
 
@@ -197,7 +203,7 @@ table_1_data_pre %>%
   mutate(division = fct_reorder(division, division_zwfl)) %>%
   ggplot(aes(x = division, y = zwfl, fill = division)) +
   geom_violin(alpha = .4) +
-  stat_summary(fun.y = median, geom = "point", color = "IndianRed", size = 2) +
+  stat_summary(fun = median, geom = "point", color = "IndianRed", size = 2) +
   scale_fill_viridis(discrete = TRUE) +
   theme_bw() +
   theme(legend.position = "none",
@@ -259,16 +265,124 @@ climate_95_pctiles =
             tmax_95_area = quantile(tmax, probs = 0.95),
             tmin_95_area = quantile(tmin, probs = 0.95)
   ) %>% 
+  
+  # See note below re: area-measurement vs. Division-measurement
+  
+  # ungroup() %>% 
+  # group_by(division) %>% 
+  # mutate(p_95_division = quantile(precip, probs = 0.95),
+  #        tmax_95_division = quantile(tmax, probs = 0.95),
+  #        tmin_95_division = quantile(tmin, probs = 0.95)
+  # ) %>% 
   ungroup() %>% 
-  group_by(division) %>% 
-  mutate(p_95_division = quantile(precip, probs = 0.95),
-         tmax_95_division = quantile(tmax, probs = 0.95),
-         tmin_95_division = quantile(tmin, probs = 0.95)
+  mutate(
+    
+    # Upon second thought, doesn't make sense to esimate heat wave days on a Division scale - if we want to make inference on a Division scale, we should estimate with as much granularity as possible at first (i.e. area/upazila-level), then scale inference up to Division
+      # Also, from a practical/logical standpoint, climate measures were measured at the area level, so District-based heatwave cutoffs wouldn't make sense
+    
+    # heat_wave_day_division = case_when(tmax >  tmax_95_division & tmin >  tmin_95_division ~ 1,
+    #                                    tmax <= tmax_95_division | tmin <= tmin_95_division ~ 0,
+    #                                    TRUE ~ 999),
+    heat_wave_day_area = case_when(tmax >  tmax_95_area & tmin >  tmin_95_area ~ 1,
+                                   tmax <= tmax_95_area | tmin <= tmin_95_area ~ 0),
+    heat_wave_day_area = as.logical(heat_wave_day_area),
+    # heat_wave_day_difference = case_when(heat_wave_day_division - heat_wave_day_area == 0 ~ 0,
+    #                                      heat_wave_day_division - heat_wave_day_area != 0 ~ 1,
+    #                                      TRUE ~ 999)
+    precip_wave_day_area = case_when(precip >  p_95_area ~ 1,
+                                     precip <= p_95_area ~ 0),
+    
+    precip_wave_day_area = as.logical(precip_wave_day_area)
   ) %>% 
-  ungroup()
-  # ***** create heat wave indicator here
+    
+  # Week-level climate predictors
+  group_by(year, surv_area, week) %>% 
+  mutate(
+    
+     # Week-grouped measures don't make as much sense - need 7-day window function
+        # But need them for weekly timeseries
+    heat_wave_day_area_week = sum(heat_wave_day_area),
 
-#table_1_data =
+    precip_wave_day_area_week = sum(precip_wave_day_area)
+    
+  ) %>% ungroup() %>% 
+  
+  group_by(surv_area) %>% 
+  
+  mutate(
+    
+    heat_wave_day_area_7days = zoo::rollsum(heat_wave_day_area, k = 7, na.pad = TRUE, align = "right"),
+    
+    precip_wave_day_area_7days = zoo::rollsum(precip_wave_day_area, k = 7, na.pad = TRUE, align = "right")
+
+   # Number of 'heat wave days':              # Number of 'extreme precip days'"
+    # Days above both 95%ile tmax and tmin      # Days above 95%ile precipitation
+         # heat_wave_day_area                   precip_wave_day_area
+         # 0:135024                             0:129759            
+         # 1:  1574                             1:  6839 
+
+   # Number of heat wave / ex pr days in the same week - *** doesn't make much sense - should do running sum of past 7 days instead
+   # UPDATED to rolling sum of past 7 days:
+            
+  # heat_wave_day_area_7days      n                    precip_wave_day_area_7days     n
+  #                 <int>  <int>                                        <int>  <int>
+  #                     0 130018                  1                         0 105523
+  #                     1   3858                  2                         1  19240
+  #                     2   1290                  3                         2   7604
+  #                     3    644                  4                         3   2899
+  #                     4    326                  5                         4    876
+  #                     5    143                  6                         5    196
+  #                     6     64                  7                         6     36
+  #                     7     35                  8                         7      4
+  #                    NA    132                  9                        NA    132
+  
+  # (*** 6 NAs for each of 22 areas (6*22=132) - window function can't capture 6 days of data before Jan 1 1990)
+  
+  ) %>% 
+  ungroup() %>% 
+  group_by(surv_area) %>% 
+  arrange(surv_area, date) %>% 
+  mutate(
+    
+   # Flag for a day during a heat wave - during a period of 3+ consecutive heat wave days  
+   heat_wave_area = case_when(heat_wave_day_area == 1 & lead(heat_wave_day_area, 1) == 1 & lead(heat_wave_day_area, 2) == 1 ~ 1,
+                              heat_wave_day_area == 1 & lag(heat_wave_day_area, 1) == 1 & lead(heat_wave_day_area, 1) == 1 ~ 1,
+                              heat_wave_day_area == 1 & lag(heat_wave_day_area, 2) == 1 & lag(heat_wave_day_area, 1) == 1 ~ 1,
+                              TRUE ~ 0
+   )
+ 
+  ) %>% ungroup()
+
+# Checking heat wave variable
+climate_95_pctiles %>% 
+  filter(heat_wave_area == 1) %>% 
+  select(surv_area, date, starts_with(c("tmax", "tmin")), heat_wave_day_area, starts_with("heat_wave_area")) %>% 
+  arrange(surv_area, date) # %>% 
+  # view()
+
+# Getting heat wave lengths - idea from https://stackoverflow.com/questions/15197133/get-sum-of-consecutive-day-values
+heat_rle = rle(climate_95_pctiles$heat_wave_area)
+ival = heat_rle$lengths %>% as_tibble()
+# my own code - using uncount() to repeat each cell by its value
+heat_count = ival %>% mutate(value2 = value) %>% uncount(value2)
+
+climate_95_pctiles =
+  bind_cols(climate_95_pctiles, heat_count) %>% 
+  mutate(value = as.numeric(value)) %>%   # was integer, need double
+  select(everything(), heat_wave_length = value) %>% 
+  mutate(
+    heat_wave_length = case_when(heat_wave_area == 0 ~ 0,
+                                 heat_wave_area == 1 ~ heat_wave_length)
+  )
+
+# Cleaning up
+rm(heat_rle, ival, heat_count)
+
+```
+
+
+```{r}
+table_1_data =
   table_1_data_pre %>% 
   
   # Getting rid of old climate vars
@@ -277,13 +391,19 @@ climate_95_pctiles =
     -starts_with("matlab"),                       # Removing MATLAB percentile variables
     -p_last_30, -t_last_30,                       # Not looking at 30-day windows
     -ends_with("indicator"),                      # Not looking at 30-day windows (these indicated whether in last 30 days)
-    -ends_with("_95")
+    -ends_with("_95"),
+    date = dov
   ) %>% 
+  
+  # mutate(
+  #   year = as.numeric(year) # was having issues joining
+  # ) %>% 
   
   # Joining with new ones
   left_join(
     .,
-    climate_95_pctiles
+    climate_95_pctiles %>% select(surv_area, date, p_95_area:heat_wave_length),
+    by = c("surv_area", "date")
   ) %>% 
     
   mutate_at(
@@ -299,31 +419,10 @@ climate_95_pctiles =
                            agemos < 48 ~ "36-47",
                            agemos < 60 ~ "48-60"),
     agemos_cat = as.factor(agemos_cat),
-    agemos_cat = fct_reorder(agemos_cat, agemos),
+    agemos_cat = fct_reorder(agemos_cat, agemos)
     
-    # New climate variables - BY SURVEY AREA
-    extr_p_area = case_when(
-      precip > p_95_area ~ '1',
-      precip <= p_95_area ~ '0'
-    ),
-    extr_t_area = case_when(
-      tmax > tmax_95_area & tmin > tmin_95_area ~ '1',           # Nissan et al paper - tmax and tmin above 95th percentile
-      TRUE ~ '0'
-    ),
-    extr_p_area = as.logical(as.numeric(extr_p_area)),
-    extr_t_area = as.logical(as.numeric(extr_t_area))
-  ) %>% 
-    
-  # Week-based climate measures
+  )
   
-  
-  
-  ## NOTES
-    # p_95_area = area-specific precip threshold (95th %ile) across span of data for area
-    # tmax_95_area = area-specific temp threshold (95th %ile) across span of data for area
-    # tmin_95_area
-    # extr_p_area = indicator 1/0 of extreme precip by 95th %ile 
-    # extr_t_area = indicator 1/0 of extreme temp by 95th %ile (tmax and tmin)
 ```
 
 Creating functions needed for Table 1
@@ -493,19 +592,14 @@ age_table =
 
 ```{r}
 
-# Same-week heat wave exposure (95%ile for tmax AND tmin for 3+ days)
-
-# Need to create weekly heat indicators and weekly dataset
-  # This will be:
-    # Yes (#, %)
-    # No (#, %)
+# Number of heat waves
 
 ```
 
 
 ```{r}
 
-# Same-week heat wave DAY exposure (95%ile for tmax AND tmin for one day, regardless of continuity)
+# Past-7-day heat wave DAY exposure (95%ile for tmax AND tmin for one day, regardless of continuity)
 
 # Need to create weekly heat indicators and weekly dataset
   # This will be:
@@ -514,11 +608,15 @@ age_table =
     # 2 days (#, %)
     # etc.
 
+label(table_1_data$heat_wave_day_area_7days) = "Heat wave days in prior 7 days (max. and min. temp. > 95th %ile)"
+heat_wave_day_table =
+  merge_table_ones(heat_wave_day_area_7days)
+
 ```
 
 ```{r}
 
-# Same-week extreme precipitation exposure (95%ile for precip for one day, regardless of continuity)
+# Past-7-day extreme precipitation exposure (95%ile for precip for one day, regardless of continuity)
 
 # Need to create weekly heat indicators and weekly dataset
   # This will be:
@@ -526,20 +624,108 @@ age_table =
     # 1 day (#, %)
     # 2 days (#, %)
     # etc.
+
+label(table_1_data$precip_wave_day_area_7days) = "Extreme precipitation days in prior 7 days (precipitation > 95th %ile)"
+precip_wave_day_table =
+  merge_table_ones(precip_wave_day_area_7days)
+
+```
+
+Merged Table 1
+
+```{r}
+
+table_1 =
+  tbl_stack(
+    list(
+      division_table,
+      age_table,
+      heat_wave_day_table,
+      precip_wave_day_table
+    )
+  ) %>% 
+  bold_labels() %>%
+  as_gt() %>% 
+  cols_label(label = md("")) %>%
+  tab_header(
+    title = "Table 1. Demographic and exposure profile of study population"
+  ) %>% 
+  tab_options(
+    table.font.size = '80%'
+  )
+  
+  
+# Saving
+# saveRDS(table_1, './figures/table_1.RDS')
+
+```
+
+Creating a separate heat wave table - overall heat waves during survey period, by region
+
+```{r}
+  
+# Getting heat wave lengths - idea from https://stackoverflow.com/questions/15197133/get-sum-of-consecutive-day-values
+heat_rle = rle(climate_95_pctiles$heat_wave_area)
+ival = heat_rle$lengths %>% as_tibble() %>% rename(lengths = value)
+ival2 = heat_rle$values %>% as_tibble() %>% rename(values = value)
+ival3 = tibble(
+  
+  lengths = heat_rle$lengths,
+  values = heat_rle$values
+  
+)
+# my own code - using uncount() to repeat each cell by its value
+heat_count = ival3 %>% mutate(a = lengths) %>% uncount(a)
+
+heat_waves_by_area = 
+  bind_cols(heat_count, 
+            climate_95_pctiles %>% select(surv_area, date, year, month, day)) %>% 
+  filter(values == 1) %>% 
+  unique() %>% 
+  mutate(date_lag = date - lag(date),
+         date_lag = as.numeric(date_lag),
+         date_lag = case_when(is.na(date_lag) ~ 0, 
+                              TRUE ~ date_lag)) %>%    ## if difference between date in current cell and previous cell is not 1 day, then it's the first of a series - keep only these to count heat waves
+  filter(date_lag != 1) %>% 
+  select(heat_wave_length = lengths, everything(), -date_lag, -values)
+
+heat_wave_freq =
+  heat_waves_by_area %>% 
+  mutate(heat_wave_length = as.factor(heat_wave_length)) %>% 
+  left_join(., table_1_data %>% select(surv_area, area_name) %>% unique(), by = "surv_area") %>% 
+  ggplot(aes(x = heat_wave_length)) +
+  geom_bar() +
+  facet_wrap(~ area_name) +
+  scale_x_discrete() + 
+  labs(x = "Heat wave length (days)",
+       y = "Frequency",
+       title = "Frequency of heat wave by surveyed area and length of heatwave")
+
+# Saving to figures
+# saveRDS(heat_wave_freq, './figures/heat_wave_freq.RDS')
+
+```
+
+# FINAL DATASET - INDIVIDUAL LEVEL
+
+```{r}
+
+# saveRDS(table_1_data, './data/final_dataset_individual.RDS')
 
 ```
 
 Next steps:
 
-  * Create weekly dataset with weekly exposure counts
-  * Add to Table 1 rows
-    + Merge Table 1
+  * xxx Create weekly dataset with weekly exposure counts
+  * xxx Add to Table 1 rows
+    + xxx Merge Table 1
   * Start on figures
     + Timeseries of survey count, outcome, exposure, etc. by time/Division
     + Look in 'to_do.txt', 'sample_and_prelim_figs.Rmd', and 'analytic_plan_manuscript.Rmd' for ideas on figures
     
-  * Create heat wave (3+ days) variable using enacts.RDS (go here *****)
+  * Create heat wave (3+ days) variable using enacts.RDS
   * Weekly climate measures:
-    + Same-week heat wave
-    + Same-week # extreme heat days
-    + Same-week # extreme precipitation days
+    + xxx Heat wave + length
+    + Experienced heat wave in past week?
+    + xxx Past-seven-day # extreme heat days
+    + xxx Past-seven-day # extreme precipitation days

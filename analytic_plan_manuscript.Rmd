@@ -1,7 +1,7 @@
 ---
 title: "Analytic Plan"
 subtitle: "ACToday Extreme Climate-Wasting Manuscript"
-date: "4 March 2020"
+date: "27 March 2020"
 output: html_document
 editor_options: 
   chunk_output_type: console
@@ -20,16 +20,20 @@ What follows is an analytic plan containing research questions, hypotheses, and 
 ##### *Research Questions*
 
   1. Do extreme climate events increase prevalence of wasting among children in Bangladesh? 
-    a. Extreme heat
-    b. Extreme precipitation
+      a. Extreme heat
+      b. Extreme precipitation
   2. If so, are there lags that are important to these relationships?
   3. Are there differential effects by region and/or season that should be accounted for?
+  
+&nbsp;  
   
 ##### *Hypotheses*
 
   1. Extreme heat and extreme (high) precipitation will be positively associated with prevalence of under-5 wasting in Bangladesh.
   2. Lag periods will differ for extreme heat and extreme precipitation, but will be important for each exposure-outcome association.
   3. There will be differential associations between climate and acute malnutrition by (a) region and (b) season.
+
+&nbsp;
 
 ##### *Methods*
 
@@ -91,6 +95,7 @@ Statistical Methods:
   #     + Advantages: confounding control built into model if correctly specified; able to test for effects of and effect modification by individual-level factors
 -->
 
+&nbsp;
 
 ##### *Figures*
 
@@ -109,7 +114,7 @@ data = readRDS('./data/nsp_enacts_extreme')
 
 ```
 
-
+<!--
 Figure 1: Analysis Directed Acyclic Graph (DAG)
 <br><center> <img src="images/presentation_dag.png" style = "border:5px solid"> </center><br>
 
@@ -205,6 +210,7 @@ data %>%
   theme(legend.position = "none")
 
 ```
+-->
 
 ```{r, fig.width = 12, fig.height = 6, echo = FALSE, message = FALSE, warning = FALSE}
 library(lubridate)
@@ -223,7 +229,7 @@ data %>%
   theme_bw() +
   labs(x = "Month/Year",
        y = "Monthly Wasting Prevalence",
-       title = "Figure 6: Monthly Wasting Prevalence, by Survey Area") +
+       title = "Figure 1: Monthly Wasting Prevalence, by Survey Area") +
   
   geom_smooth(method = gam, formula = y ~ s(x, k = 4), size = .1, alpha = .1) + ## penalized spline with 4 knots
   
@@ -231,6 +237,8 @@ data %>%
   facet_wrap(~area_name) 
 
 ```
+
+&nbsp;
 
 ##### *Remaining questions*
 
@@ -242,7 +250,7 @@ data %>%
   * Include holiday indicator as covariate (potential confounder)?
   * Consider autocorrelations of time-series data?
   
-
+<!--
 ```{r, eval = FALSE, echo = FALSE}
 library(tidyverse)
 library(knitr)
@@ -387,9 +395,11 @@ data %>%
 
 ## if we're doing timeseries, would need to use quasi-likelihood
 ```
+-->
 
+&nbsp;
 
-#### *Introduction - Outline*
+##### *Appendix:* Introduction outline
 
   * Climate increasingly variable, with higher average temperatures and increased frequency of extreme events already observed and anticipated to worsen
     + IPCC, 2018
@@ -451,45 +461,3 @@ failures, which in turn affect nutrition
       + Proposed explanations:
         + precipitation --> contaminated runoff, water quality, environmental contact with pathogens --> non-cholera diarrhea --> wasting (Singh et al 2001, Hashizume et al 2007, Mertens et al 2019)
         + precipitation --> river level? --> seasonal cholera --> diarrhea/immunocompromised --> wasting (Hashizume et al 2008/2010)
-        
-        
-# Next Steps 03/04/2020
-
-  * Reaching out to Melody x
-  * IRB stuff?
-    + Who will be PI?
-    + Get in touch with Matt - remain on the IRB***
-  * Confirm data with HKI
-  * Author
-    + Me
-    + Hannah (last)
-    + Matt?
-    + Shauna
-    + Robbie
-    + Walter
-    + Jillian?
-  * Journals
-    + Med
-      + Lancet Planetary Health (new)
-      + Lancet Climate Change? Maybe not
-    + Epi/Env
-      + EHP
-      + EE
-    + Epidemiology
-      + Epi
-      + AJE
-    + Nutrition?
-      + AJCN / EJCN?
-      + 
-
-  * Explore data:
-    + Differential effects by region
-    + Differential effects by season
-    
-  * Sabine Gab... with Waid - publication in Lancet Planetary Health
-  * Think about 4-5 to present results
-    + Map - exposure and outcome-based
-    + Fourier plots? 
-      + To address long-term trend, normalize by year? 
-    + Figures 4-5: some sort of display of results
-    + Look at Robbie's Figure 1-2 with mortality across different years

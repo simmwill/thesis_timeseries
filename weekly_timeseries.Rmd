@@ -1,0 +1,100 @@
+---
+title: "Week-level timeseries analyses"
+author: "Will Simmons"
+date: "4/9/2020"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+```{r}
+
+library(tidyverse)
+
+geography_key = readRDS('./data/geography_key.RDS')
+
+```
+
+
+# Final dataset - week-level
+
+Columns:
+
+  * division
+  * area
+  * year
+  * month
+  * week (excludes Feb 29; days in 53rd week folded into 52nd)
+  * sum(wasting) - outcome
+  * sum(count surveyed in week) - denominator/offset term
+  * sum(heat_wave_day_area) - exposure, indicator of heat wave day (# per week)
+  * sum(precip_wave_day_area) - exposure, indicator of extreme precipitation day (# per week)
+  * (anything with heat waves?)
+  
+Need to fill in missing weeks with NA to do proper lag analyses
+
+```{r}
+
+day_data = readRDS('./data/final_dataset_individual.RDS')
+
+# Create skeleton of surv_area, year, week to create NAs where there are gaps in actual dataset
+full_week_grid = 
+  expand_grid(
+    surv_area = 4:25,
+    year = as.factor(1990:2006),
+    week = 1:52
+  ) %>% 
+  left_join(
+    .,
+    geography_key %>% select(division_id, surv_area) %>% mutate(surv_area = as.numeric(surv_area)) %>% unique()
+  )
+
+week_data =
+  day_data %>% 
+  mutate(surv_area = as.numeric(surv_area),
+         division_id = as.numeric(division_id)) %>% 
+  group_by(division_id, surv_area, year, week) %>% 
+  summarize(
+    wasting = sum(wasting),
+    offset = n(),
+    heat_wave_days = unique(heat_wave_day_area_week),
+    precip_wave_days = unique(precip_wave_day_area_week)
+  ) %>% 
+  filter(
+    offset > 29
+  ) %>% # ggplot(aes(x = wasting/offset)) + geom_histogram() # plot of wasting prevalence
+  full_join(
+    .,
+    full_week_grid
+  ) %>% 
+  arrange(surv_area, year, week) %>% 
+  ungroup()
+  
+```
+
+How many lags can we observe given sparsity of data?
+
+```{r}
+
+lag_test =
+  week_data %>% 
+  mutate(h_lag_1 = lag(heat_wave_days, 1),
+         p_lag_1 = lag(precip_wave_days, 1),
+         h_lag_2 = lag(heat_wave_days, 2),
+         p_lag_2 = lag(precip_wave_days, 2),
+         h_lag_3 = lag(heat_wave_days, 3),
+         p_lag_3 = lag(precip_wave_days, 3),
+         h_lag_4 = lag(heat_wave_days, 4),
+         p_lag_4 = lag(precip_wave_days, 4)
+  ) %>% 
+  mutate_at(
+    vars(contains("_lag")),
+    funs(as.factor(.))
+  )
+
+colSums(is.na(lag_test))
+
+# Next: check how many values 0/non-zero/NA for each lag
+
+```
+
