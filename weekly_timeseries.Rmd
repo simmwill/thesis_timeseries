@@ -10,8 +10,32 @@ editor_options:
 ```{r}
 
 library(tidyverse)
+library(conflicted)
+conflict_prefer("summarize", "dplyr")
+conflict_prefer("filter", "dplyr")
+conflict_prefer("lag", "dplyr")
 
 geography_key = readRDS('./data/geography_key.RDS')
+
+# Updated in creating_enacts_dataset.Rmd
+enacts = readRDS('./data/enacts')
+
+# Created in table_1.Rmd
+climate_95_pctiles = readRDS('./data/climate_95_pctiles.RDS') %>% 
+  select(-ends_with("7days")) %>% 
+  mutate(
+    surv_area = as.numeric(surv_area)
+  )
+
+day_data = readRDS('./data/final_dataset_individual.RDS') %>% 
+  mutate(surv_area = as.numeric(surv_area),
+         division_id = as.numeric(division_id),
+         year = as.numeric(as.character(year))) %>% 
+  select(
+    -ends_with("7days"),
+    -control,
+    -area_name
+  )
 
 ```
 
@@ -23,20 +47,21 @@ Columns:
   * division
   * area
   * year
-  * month
+  * (month) - not included for now, since may make things confusing with week
   * week (excludes Feb 29; days in 53rd week folded into 52nd)
   * sum(wasting) - outcome
   * sum(count surveyed in week) - denominator/offset term
   * sum(heat_wave_day_area) - exposure, indicator of heat wave day (# per week)
   * sum(precip_wave_day_area) - exposure, indicator of extreme precipitation day (# per week)
-  * (anything with heat waves?)
+  * indicator of heat wave occurring during that week
   
-Need to fill in missing weeks with NA to do proper lag analyses
+Need to fill in missing wasting weeks with NA to do proper lag analyses
+
+  * But need to keep ALL climate data at weekly level so that no NAs for lags!
+
+Climate data for all weeks:
 
 ```{r}
-
-day_data = readRDS('./data/final_dataset_individual.RDS')
-
 # Create skeleton of surv_area, year, week to create NAs where there are gaps in actual dataset
 full_week_grid = 
   expand_grid(
@@ -49,35 +74,102 @@ full_week_grid =
     geography_key %>% select(division_id, surv_area) %>% mutate(surv_area = as.numeric(surv_area)) %>% unique()
   )
 
-week_data =
-  day_data %>% 
-  mutate(surv_area = as.numeric(surv_area),
-         division_id = as.numeric(division_id)) %>% 
-  group_by(division_id, surv_area, year, week) %>% 
-  summarize(
-    wasting = sum(wasting),
-    offset = n(),
-    heat_wave_days = unique(heat_wave_day_area_week),
-    precip_wave_days = unique(precip_wave_day_area_week)
-  ) %>% 
-  filter(
-    offset > 29
-  ) %>% # ggplot(aes(x = wasting/offset)) + geom_histogram() # plot of wasting prevalence
+weekly_climate_data =
+  climate_95_pctiles %>% 
   full_join(
     .,
-    full_week_grid
+    day_data %>% mutate(division = as.character(division))
   ) %>% 
-  arrange(surv_area, year, week) %>% 
-  ungroup()
-  
+  select(
+    # date,
+    division_id,
+    surv_area,
+    year, 
+    week,
+    wasting,
+    ends_with("day_area_week"),
+    tmax, tmin  # Covariates in precip model
+  ) %>% 
+  group_by(surv_area, year, week) %>% 
+  summarize(
+    # wasting = sum(wasting, na.rm = T),  # Wasting is sum of only non-missing values in a given week
+    # offset = n(), # offset here includes NA wasting values, but correct below
+    heat_wave_days = unique(heat_wave_day_area_week),
+    precip_wave_days = unique(precip_wave_day_area_week),
+    weekly_tmax = mean(tmax),
+    weekly_tmin = mean(tmin)
+  ) #%>% 
+  # mutate(
+  #   offset = case_when(is.na(wasting) ~ as.integer(-999),  # When wasting is missing (all wasting obs in week were NA), offset will be NA
+  #                      !(is.na(wasting)) ~ offset)         # Otherwise, value calculated above
+  # ) %>% 
+  # naniar::replace_with_na_all(condition = ~.x == -999)     # Didn't let me directly use NA within case_when, so used integer then substitute
+
 ```
 
+Wasting data for weeks that have observations: (includes ALL offset values, not just > 29)
+
+```{r}
+
+weekly_wasting_data =
+  day_data %>%
+  group_by(surv_area, year, week) %>%
+  summarize(
+    wasting = sum(wasting),
+    offset = n()
+  ) 
+  # filter(
+  #   offset > 29
+  # ) %>% 
+
+
+```
+
+Joining weekly climate and wasting data
+
+```{r}
+
+weekly_timeseries_data =
+  full_join(
+    weekly_climate_data,
+    weekly_wasting_data
+  ) %>% 
+  select(surv_area, year, week, wasting, offset, everything()) %>% 
+  group_by(
+    surv_area
+  ) %>% 
+  mutate(
+    week_overall = 1:n(),
+  )
+
+yr_num = 
+  weekly_timeseries_data %>% 
+  filter(!is.na(wasting)) %>% 
+  summarize(
+    min = min(year),
+    max = max(year),
+    yr_num = max - min + 1
+  ) 
+
+weekly_timeseries_data =
+  weekly_timeseries_data %>% 
+  left_join(
+    .,
+    yr_num %>% select(surv_area, yr_num)
+  )
+
+
+```
+
+
 How many lags can we observe given sparsity of data?
+
+  * Correction in my thought process here - only our wasting data are sparse. We should be able to observe all lags except for those that extend before 1/1/1990 (earliest climate data we have)
 
 ```{r}
 
 lag_test =
-  week_data %>% 
+  weekly_timeseries_data %>% 
   mutate(h_lag_1 = lag(heat_wave_days, 1),
          p_lag_1 = lag(precip_wave_days, 1),
          h_lag_2 = lag(heat_wave_days, 2),
@@ -86,15 +178,147 @@ lag_test =
          p_lag_3 = lag(precip_wave_days, 3),
          h_lag_4 = lag(heat_wave_days, 4),
          p_lag_4 = lag(precip_wave_days, 4)
-  ) %>% 
-  mutate_at(
-    vars(contains("_lag")),
-    funs(as.factor(.))
-  )
+  ) 
 
 colSums(is.na(lag_test))
+# 1 day per lag missing for each area (but all Jan 1-4, so should be fine in terms of observed lagged exp. with respect to outcome - first outcome for each area occurs much later than Jan 1)
 
-# Next: check how many values 0/non-zero/NA for each lag
+lag_test %>% ungroup() %>% select(wasting) %>% tally(!is.na(.))
+# 9,448 weeks of wasting non-missing
+
+lag_test %>% ungroup() %>% select(wasting, offset) %>% filter(offset > 29) %>% tally(!is.na(wasting))
+# 8,036 weeks of wasting non-missing with offset 30+
+
+# CONCLUSION: Lagged models should be ready to use
 
 ```
 
+# Running timeseries analyses (no lags)
+
+Exposures:
+
+  * # heat wave days in current week
+    + Defined: tmax and tmin BOTH above 95th pctile
+    + Not necessarily consecutive
+  * # extreme precipitation days in current week
+    + Defined: precipitation above 95th pctile
+
+Outcome:
+
+  * Weekly count of wasting (WHZ < -2)
+  * OFFSET term (denominator) of # surveyed during given week
+  
+Covariates:
+
+  * 
+  
+## Exploring data
+
+```{r}
+
+# Plotting timeseries of wasting per area
+library(mgcv)
+weekly_timeseries_data %>% 
+  mutate(obs = 1:n()) %>% 
+  ggplot(data = .,
+         aes(x = obs, y = wasting/offset)
+  ) +
+  geom_point(size = 0.01, color = 'indianred', alpha = 0.5) +
+  geom_smooth(method = 'gam', formula = y ~ s(x, k = 40)) +
+  facet_wrap(~surv_area)
+
+# Temperature timeseries (covariates for precip model) per area
+weekly_timeseries_data %>% 
+  mutate(obs = 1:n()) %>% 
+  ggplot(data = .,
+         aes(x = obs)
+  ) +
+  # geom_line(aes(y = weekly_tmax), color = 'mediumvioletred') +
+  # geom_line(aes(y = weekly_tmin), color = 'lightblue') +
+  geom_smooth(aes(y = weekly_tmax), method = 'gam', formula = y ~ ns(weekly_tmin, df = ))
+  facet_wrap(~surv_area) +
+  ggtitle("tmax and tmin per area")
+
+```
+
+## Crude timerseries models - no lags
+
+```{r}
+
+# See ./images/presentation_dag.png -
+  # Because temperature likely confounds the relationship between precipitation and wasting, adjust for temperature in precipitation estimates
+  # However, because precipitation is a MEDIATOR of the temperature-wasting relationship, DON'T adjust for precipitation in temp estimates
+
+  # See https://www.nature.com/articles/ngeo1731
+
+# Average number of years per area, wieghted by non-NA obs
+weekly_timeseries_data %>% select(offset, yr_num) %>% filter(!is.na(offset)) %>% ungroup() %>% 
+  mutate(weighted_years = offset*yr_num) %>% 
+  summarize(obs = sum(offset),
+            yr_sum = sum(weighted_years),
+            yr_mean = yr_sum/obs) %>% 
+  select(-obs, -yr_sum)
+  # 14.4 years avg
+
+# Precipitation - adjust for temp
+ts_precip =
+weekly_timeseries_data %>% drop_na() %>%  # only in offset and outcome variables - model would do this anyway, but issues with NA in offset
+filter(offset > 29) %>% 
+  glm(
+    data = .,
+    offset = log(offset),           # offset term - need to log!
+    wasting ~
+      precip_wave_days +            # exposure
+      surv_area +                   # survey area
+      ns(weekly_tmax, df = 4) +     # temperature covariate for precipitation
+      ns(week_overall, df = 4 * 14),
+    # Nonlinear secular term - DF = 4*17, where 4 is # seasons and 14 is avg # years in each area
+    family = "poisson"
+  )                    # Both long-term and seasonal trends
+
+# Temp - don't adjust for precip
+ts_temp =
+weekly_timeseries_data %>% drop_na() %>%  # only in offset and outcome variables - model would do this anyway, but issues with NA in offset
+filter(offset > 29) %>% 
+  glm(
+    data = .,
+    offset = log(offset),                # offset term - need to log!
+    wasting ~
+      heat_wave_days +                   # exposure
+      surv_area +                        # survey area
+      ns(week_overall, df = 4 * 14),     # Nonlinear secular term - DF = 4*17, where 4 is # seasons and 14 is avg # years in each area
+    family = "poisson"
+  )                    # Both long-term and seasonal trends
+
+```
+
+### Just plots to look at different smooths vs. outcome
+
+```{r}
+library(splines)
+ggplot(data = weekly_timeseries_data,
+       aes(x = week_overall, y = wasting/offset)) +
+  geom_smooth(method = 'gam', formula = y ~ ns(x, df = 4*14)) +   # Avg years per area = 14.4, round down to 14 since df has to be integer
+  facet_wrap(~surv_area)
+
+weekly_timeseries_plot %>% 
+
+ggplot(data = weekly_timeseries_data,
+       aes(x = weekly_tmax, y = wasting/offset)) +
+  geom_smooth(method = 'gam', formula = y ~ ns(x, df = 4)) +
+  facet_wrap(~surv_area)
+
+ggplot(data = weekly_timeseries_data,
+       aes(x = weekly_tmin, y = wasting/offset)) +
+  geom_smooth(method = 'gam', formula = y ~ ns(x, df = 4)) +
+  facet_wrap(~surv_area)
+
+```
+
+## Lagged timeseries models
+
+  * Above, I fit 0-lag timeseries models for both precipitation (controlling for temp) and temp (NOT controlling for precip). 
+  * Next, I should:
+    + Fit appropriate-lag models for these relationships
+    + See aamehs_6.Rproj (and aamehs_5.Rproj for nonlinear)
+    
